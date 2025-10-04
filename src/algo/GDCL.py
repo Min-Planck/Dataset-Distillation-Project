@@ -68,7 +68,7 @@ class GDCL(IDatasetDistillation):
         self.generator.eval()
 
         print(f"Loaded distilled generator from: {self.distilled_model_path}")
-        
+            
     def distillation(self): 
         self.Q = self.opt['num_distill_epochs']
         lr = self.opt['lr']

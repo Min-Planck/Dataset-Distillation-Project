@@ -10,15 +10,21 @@ import os
 
 from ..algo.helper_class import SynThetic
 
-def sample_image(generator, n_row, batches_done, FloatTensor, LongTensor, latent_dim):
-    """Saves a grid of generated digits ranging from 0 to n_classes"""
+def sample_image(generator, n_row, batches_done, device, latent_dim):
+    os.makedirs("images", exist_ok=True)
+
     # Sample noise
-    z = Variable(FloatTensor(np.random.normal(0, 1, (n_row ** 2, latent_dim))))
-    # Get labels ranging from 0 to n_classes for n rows
-    labels = np.array([num for _ in range(n_row) for num in range(n_row)])
-    labels = Variable(LongTensor(labels))
-    gen_imgs = generator(z, labels)
-    save_image(gen_imgs.data, "images/%d.png" % batches_done, nrow=n_row, normalize=True)
+    z = torch.randn(n_row ** 2, latent_dim, device=device)
+    # labels: mỗi hàng là 1 class: [0,0,...,1,1,..., n_row-1,...]
+    labels = torch.tensor([i for i in range(n_row) for _ in range(n_row)], dtype=torch.long, device=device)
+
+    generator.eval()
+    with torch.no_grad():
+        gen_imgs = generator(z, labels)
+    generator.train()
+
+    save_image(gen_imgs, f"images/{batches_done}.png", nrow=n_row, normalize=True)
+
 
 
 def get_images(indices_class, images_all, c, n): # get random n images from class c
@@ -103,13 +109,13 @@ def generate_sample_dim(generator, dataset_name, ipc, latent_dim, save_root, n_c
 
     print(f"Generated and Saved {n_classes * ipc} images to: {base_dir}")
 
-def evaluate_dii_method(model_name, synthetic_datas, testloader, batch_size, ipc, num_train_epochs, n_classes, device): 
+def evaluate_dii_method(model_name, opt, synthetic_datas, testloader, batch_size, ipc, num_train_epochs, n_classes, device): 
     accuracies = []
     targets_syn = torch.tensor([np.ones(ipc) * i for i in range(n_classes)], dtype=torch.long, requires_grad=False,  device=device).view(-1)
 
     for data_syn in synthetic_datas:
         loss_fn = torch.nn.CrossEntropyLoss().to(device)
-        net = get_model_by_name(model_name).to(device)
+        net = get_model_by_name(model_name, opt).to(device)
         net.train()
 
         optimizer = torch.optim.SGD(net.parameters(), lr=0.01)
@@ -245,7 +251,7 @@ def train_acgan(model_name, generator, discriminator, dataloader, opt, device):
     lr = opt['lr']
     b1 = opt['b1']
     b2 = opt['b2']
-    num_epochs = opt['num_epochs']
+    num_epochs = opt['n_epochs']
     n_classes = opt['n_classes']
     latent_dim = opt['latent_dim']
     sample_interval = opt['sample_interval']
@@ -264,14 +270,19 @@ def train_acgan(model_name, generator, discriminator, dataloader, opt, device):
     adversarial_loss.to(device)
     auxiliary_loss.to(device)
 
+    flip_prob = 0.05
+    
     for epoch in range(num_epochs):
 
         for i, (imgs, labels) in enumerate(dataloader):
             batch_size = imgs.shape[0]
             # Adversarial ground truths
-            valid = Variable(FloatTensor(batch_size, 1).fill_(1.0 ), requires_grad=False)
+            valid = Variable(FloatTensor(batch_size, 1).fill_(1.0), requires_grad=False)
             fake = Variable(FloatTensor(batch_size, 1).fill_(0.0), requires_grad=False)
 
+            if torch.rand(1).item() < flip_prob:
+                valid, fake = fake, valid
+            
             # Configure input
             real_imgs = Variable(imgs.type(FloatTensor))
             labels = Variable(labels.type(LongTensor))
@@ -326,7 +337,7 @@ def train_acgan(model_name, generator, discriminator, dataloader, opt, device):
                 )
             batches_done = epoch * len(dataloader) + i
             if batches_done % sample_interval == 0:
-                sample_image(generator, n_row=n_classes, batches_done=batches_done, FloatTensor=FloatTensor, LongTensor=LongTensor, latent_dim=latent_dim)
+                sample_image(generator, n_row=n_classes, batches_done=batches_done, device=device, latent_dim=latent_dim)
 
     os.makedirs(f"pretrained_models/gan/acgan_{opt['dataset_name']}", exist_ok=True)
     torch.save(generator.state_dict(), f"pretrained_models/gan/acgan_{opt['dataset_name']}/{model_name}_generator.pth")

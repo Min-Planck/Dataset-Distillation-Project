@@ -56,9 +56,8 @@ if __name__ == '__main__':
         eval_model = get_random_model_from_model_pool(config)
         accuracy = algo.evaluate(eval_model, ipc=IPC)
     else: 
-        algo.distillation(100, 20)
-        accuracy = algo.evaluate(50)
-
+        algo.condensation(config['distillation_steps'], config['network_step'])
+        accuracy = algo.evaluate(config['eval_train_epochs'])
 
     print(f'{ALGO} - Image per class: {IPC} - Final accuracy: {accuracy:.2f}%')
         

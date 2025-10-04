@@ -9,23 +9,23 @@ class Generator(nn.Module):
         self.opt = opt
         self.label_emb = nn.Embedding(opt['n_classes'], opt['latent_dim'])
 
-        self.init_size = opt['img_size'] // 4  # Initial size before upsampling
-        self.l1 = nn.Sequential(nn.Linear(opt['latent_dim'], 128 * self.init_size ** 2))
+        self.init_size = opt['img_size'] // 4  
+        self.l1 = nn.Sequential(
+            nn.Linear(opt['latent_dim'], 128 * self.init_size ** 2),  
+        )
 
         self.conv_blocks = nn.Sequential(
-            nn.BatchNorm2d(128),
-
-            nn.Upsample(scale_factor=2),
-            nn.Conv2d(128, 128, 3, stride=1, padding=1),
+            nn.BatchNorm2d(128), 
+            
+            nn.ConvTranspose2d(128, 128, kernel_size=4, stride=2, padding=1),
             nn.BatchNorm2d(128),
             nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Upsample(scale_factor=2),
-            nn.Conv2d(128, 64, 3, stride=1, padding=1),
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
             nn.BatchNorm2d(64),
             nn.LeakyReLU(0.2, inplace=True),
-            
-            nn.Conv2d(64, self.opt['channels'], 3, stride=1, padding=1),
+
+            nn.Conv2d(64, self.opt['channels'], kernel_size=3, stride=1, padding=1),
             nn.Tanh(),
         )
 
@@ -86,4 +86,9 @@ class Discriminator(nn.Module):
         return validity, label_logits
     
 def get_ac_gan(opt): 
-    return Generator(opt), Discriminator(opt)
+    gen_ = Generator(opt) 
+    disc_ = Discriminator(opt)
+    gen_.apply(weights_init_normal)
+    disc_.apply(weights_init_normal)
+
+    return gen_, disc_
