@@ -1,6 +1,6 @@
 from config import get_config
 from src import DiM, D2M, load_data
-from models.model_pooL import get_random_model_from_model_pool
+from src.models import get_random_model_from_model_pool
 from src.algo.dc import GradientMatching
 import torch
 from torch.utils.data import DataLoader
