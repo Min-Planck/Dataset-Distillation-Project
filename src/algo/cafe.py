@@ -1,11 +1,11 @@
-from .interface import IDatasetCondensation
 from utils import DiffAugment, ParamDiffAug, evaluate_dii_method, get_images
+from .helper_class import Synthetic
 
+import os
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 import numpy as np
-from tqdm import tqdm
 from models import get_model_by_name
 import copy
 
@@ -19,7 +19,7 @@ def criterion_middle(real_feature, syn_feature):
 
     return MSE_Loss(real_feature, syn_feature)
 
-class CAFE(IDatasetCondensation):
+class CAFE:
     def __init__(self,
                  model_name,
                  trainset, 
@@ -46,6 +46,8 @@ class CAFE(IDatasetCondensation):
         self.second_weight = opt['second_weight']
         self.first_weight = opt['first_weight']
         self.inner_weight = opt['inner_weight']
+        self.lambda_1 = opt['lambda_1']
+        self.lambda_2 = opt['lambda_2']
 
         self.indices_class = [[] for c in range(self.n_classes)]
         self.images_all = [torch.unsqueeze(trainset[i][0], dim=0) for i in range(len(trainset))]
@@ -61,17 +63,26 @@ class CAFE(IDatasetCondensation):
             self.dsa = True
             self.dsa_param = ParamDiffAug()
             self.augment_strategy = opt['dsa_strategy']
+        else: 
+            self.dsa = False
 
+    @staticmethod
     def update_model(optimizer, steps, loss_function, net, syn_data_data, syn_data_target): 
+        acc_avg = 0.0 
         for s in range(steps):
             net.train()
             prediction_syn = net(syn_data_data)
+            acc = (prediction_syn.argmax(dim=1) == syn_data_target).sum().item()
             loss_syn = loss_function(prediction_syn, syn_data_target)
+
             optimizer.zero_grad()
             loss_syn.backward()
             optimizer.step()
+            acc_avg += acc
+            
+        return acc_avg / steps
 
-    def distillation(self, distillation_steps: int, network_step: int):
+    def condensation(self, network_step: int):
 
         for i in range(1): 
             data_syn = torch.randn(size=(self.n_classes * self.ipc, self.channel, self.img_size[0], self.img_size[1]), dtype=torch.float, requires_grad=True, device=self.device)
@@ -83,10 +94,16 @@ class CAFE(IDatasetCondensation):
             loss_fn = nn.CrossEntropyLoss().to(self.device)
             criterion_sum = nn.CrossEntropyLoss(reduction='sum').to(self.device)
 
-            for k in tqdm(range(distillation_steps)):
-                net = get_model_by_name(self.model_name).to(self.device)
-                net.train() 
+            net = get_model_by_name(self.model_name, self.opt).to(self.device)
+            net.train() 
 
+            outer_acc_watcher = [] 
+            innter_acc_wathcher = []
+
+            inner_loop_cnt = 0
+            outer_loop_cnt = 0
+
+            while True: 
                 net_params = list(net.parameters()) 
                 optimizer_net = torch.optim.SGD(net.parameters(), lr=self.lr_net)
                 optimizer_net.zero_grad()
@@ -106,7 +123,7 @@ class CAFE(IDatasetCondensation):
                     img_real = get_images(self.indices_class, self.images_all, c, self.batch_size) 
                     img_syn = data_syn[c * self.ipc:(c + 1) * self.ipc].reshape((self.ipc, self.channel, self.img_size[0], self.img_size[1]))
                     
-                    if self.dsa_param is not None:
+                    if self.dsa:
                         img_real = DiffAugment(img_real, strategy=self.augment_strategy, param=self.dsa_param)
                         img_syn = DiffAugment(img_syn, strategy=self.augment_strategy, param=self.dsa_param)
 
@@ -118,15 +135,15 @@ class CAFE(IDatasetCondensation):
                     img_syn_gather.append(img_syn)
                     lab_syn_gather.append(target_syn)
 
-                img_real_gather = torch.stack(img_real_gather, dim=0).reshape(self.batch_size * 10, 3, 32, 32)
-                img_syn_gather = torch.stack(img_syn_gather, dim=0).reshape(self.ipc * 10, 3, 32, 32)
+                img_real_gather = torch.stack(img_real_gather, dim=0).reshape(self.batch_size * 10, self.channel, self.img_size[0], self.img_size[1])
+                img_syn_gather = torch.stack(img_syn_gather, dim=0).reshape(self.ipc * 10, self.channel, self.img_size[0], self.img_size[1])
                 lab_real_gather = torch.stack(lab_real_gather, dim=0).reshape(self.batch_size * 10)
                 lab_syn_gather = torch.stack(lab_syn_gather, dim=0).reshape(self.ipc * 10)
 
                 output_real, feature_real = net(img_real_gather, return_feature=True)
                 output_syn, feature_syn = net(img_syn_gather, return_feature=True)
 
-                loss_middle = self.forth_weight(criterion_middle(feature_real[-1], feature_syn[-1]) + self.third_weight * criterion_middle(feature_real[-2], feature_syn[-2]) + self.second_weight * criterion_middle(feature_real[-3], feature_syn[-3]) + self.first_weight * criterion_middle(feature_real[-4], feature_syn[-4]))
+                loss_middle = self.forth_weight * criterion_middle(feature_real[-1], feature_syn[-1]) + self.third_weight * criterion_middle(feature_real[-2], feature_syn[-2]) + self.second_weight * criterion_middle(feature_real[-3], feature_syn[-3]) + self.first_weight * criterion_middle(feature_real[-4], feature_syn[-4])
                 loss_real = loss_fn(output_real, lab_real_gather)
                 loss += loss_middle + loss_real
 
@@ -134,10 +151,6 @@ class CAFE(IDatasetCondensation):
                 last_syn_feature = torch.mean(feature_syn[0].view(10, int(feature_syn[0].shape[0] / self.n_classes), feature_syn[0].shape[1]), dim=1)
                 output = torch.mm(feature_real[0], last_syn_feature.t())
 
-                last_real_feature = torch.mean(
-                    last_real_feature.unsqueeze(0).reshape(10, int(last_real_feature.shape[0] / self.n_classes),
-                                                  last_real_feature.shape[1]), dim=1
-                )
                 loss_output = criterion_middle(last_syn_feature, last_real_feature) + self.inner_weight * criterion_sum(output, lab_real_gather)
                 loss += loss_output
                 
@@ -148,20 +161,71 @@ class CAFE(IDatasetCondensation):
                 loss_kai += loss_output.item()
                 loss_middle_item += loss_middle.item()
 
-                image_syn_train, label_syn_train = copy.deepcopy(data_syn.detach()), copy.deepcopy(
-                targets_syn.detach()) 
+                outer_acc = 0
+                for c in range(self.n_classes):
+                    img_real = get_images(self.indices_class, self.images_all, c, self.batch_size)
+                    target_real = torch.ones((img_real.shape[0],), dtype=torch.long, device=self.device) * c
 
-                self.update_model(optimizer_net, network_step, loss_fn, net, image_syn_train, label_syn_train)
-                loss_avg /= (self.n_classes * self.ipc)
+                    output = net(img_real)
+                    outer_acc += (output.argmax(dim=1) == target_real).sum().item()
 
-                if k % 50 == 0:
-                    print(f"Step {k}/{distillation_steps}, Loss: {loss_avg:.4f}")
+                outer_acc /= self.n_classes
+                outer_acc_watcher.append(outer_acc)
+                outer_loop_cnt += 1
+
+                if len(outer_acc_watcher) == 10: 
+                    if max(outer_acc_watcher) - min(outer_acc_watcher) < self.lambda_1:
+                        outer_acc_watcher = list()
+                        outer_loop_cnt = 0
+                        outer_acc = 0.0
+                        break   
+
+                    else: 
+                        outer_acc_watcher.pop(0)
                 
-                if k == distillation_steps - 1:
-                    model_save_name = f'{self.model_name}_ipc{self.images_allipc}_step{k}.pth'
-                    path = f'pretrained_models/dc/{model_save_name}' 
+                image_syn_train, label_syn_train = copy.deepcopy(data_syn.detach()), copy.deepcopy(targets_syn.detach()) 
+
+                dst_syn = Synthetic(image_syn_train, label_syn_train)
+                loader_syn = DataLoader(dst_syn, batch_size=self.batch_size, shuffle=True) 
+
+                inner_acc_watcher = list()
+                acc_syn_innter_watcher = list() 
+                inner_cnt = 0
+                acc_test = 0
+
+                while True: 
+                    acc_syn = self.update_model(optimizer_net, network_step, loss_fn, net, image_syn_train, label_syn_train)
+                    acc_syn_innter_watcher.append(acc_syn)
+
+                    for c in range(self.n_classes): 
+                        img_real = get_images(self.indices_class, self.images_all, c, self.batch_size)
+                        target_real = torch.ones((img_real.shape[0],), dtype=torch.long, device=self.device) * c
+
+                        output = net(img_real)
+                        acc_test += (target_real == output.argmax(dim=1)).sum().item() / self.batch_size
+
+                    acc_test /= self.n_classes
+                    inner_acc_watcher.append(acc_test)
+                    
+                    inner_cnt += 1 
+                    if len(inner_acc_watcher) == 10:
+                        if max(inner_acc_watcher) - min(inner_acc_watcher) < self.lambda_2:
+                            inner_acc_watcher = list()
+                            inner_cnt = 0
+                            acc_test = 0
+                            break
+                        else: 
+                            inner_acc_watcher.pop(0)
+                loss_avg /= (self.n_classes * self.ipc)
+                if (outer_loop_cnt + 1) % 50 == 0: 
+                    print(f"Step {outer_loop_cnt}, Loss: {loss_avg:.4f}, Loss_middle: {loss_middle_item:.4f}")
+                    model_save_name = f'{self.model_name}_ipc{self.ipc}_step{outer_loop_cnt}.pt'
+                    path = f'pretrained_models/cafe/{model_save_name}'
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
                     torch.save(data_syn, path)
+               
+
         print("Finished Distillation") 
 
     def evaluate(self, num_train_epochs: int) -> float:
-        return evaluate_dii_method(self.model_name, self.synthetic_datas, self.testloader, self.batch_size, self.ipc, num_train_epochs, self.n_classes, self.device)
+        return evaluate_dii_method(self.model_name, self.opt, self.synthetic_datas, self.testloader, self.batch_size, self.ipc, num_train_epochs, self.n_classes, self.device)

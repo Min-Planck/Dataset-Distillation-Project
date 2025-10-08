@@ -31,7 +31,7 @@ def get_images(indices_class, images_all, c, n): # get random n images from clas
     idx_shuffle = np.random.permutation(indices_class[c])[:n]
     return images_all[idx_shuffle]
 
-def evaluate_dim_method(generator, eval_model, testloader, num_train_epochs, n_classes, ipc, device): 
+def evaluate_dim_method(opt, generator, eval_model, testloader, num_train_epochs, n_classes, ipc, device): 
     FloatTensor = torch.cuda.FloatTensor if device == 'cuda' else torch.FloatTensor
     LongTensor = torch.cuda.LongTensor if device == 'cuda' else torch.LongTensor
 
@@ -44,7 +44,7 @@ def evaluate_dim_method(generator, eval_model, testloader, num_train_epochs, n_c
     with torch.no_grad():
         for class_id in range(num_classes):
             for _ in tqdm(range(ipc), desc=f"Class {class_id}"):
-                z = Variable(FloatTensor(np.random.normal(0, 1, (1, self.opt['latent_dim']))))
+                z = Variable(FloatTensor(np.random.normal(0, 1, (1, opt['latent_dim']))))
                 label = Variable(LongTensor([class_id]))
                 img = generator(z, label)
                 synthetic_images.append(img.cpu())
