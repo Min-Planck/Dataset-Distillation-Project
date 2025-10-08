@@ -27,14 +27,14 @@ class AlexNet(nn.Module):
 
         self.fc = nn.Linear(self._flattened_size, num_classes) # This will be updated in the first forward pass
 
-    def forward(self, x):
-        x = self.features(x)
-
-
-        x = x.reshape(x.size(0), -1)
-        x = self.fc(x)
-        return x
-
+    def forward(self, x, return_feature=False):
+        if not return_feature:
+            x = self.embed(x)
+            x = self.fc(x)
+            return x
+        logits, feat = self.get_features_after_forward(x)
+        return logits, feat
+    
     def embed(self, x):
         x = self.features(x)
         x = x.reshape(x.size(0), -1)
@@ -42,11 +42,9 @@ class AlexNet(nn.Module):
 
     def get_features_after_forward(self, x):
         features = []
-
         x = self.features(x)
-
+        features.append(x) 
         x = x.reshape(x.size(0), -1)
-
-        logits = self.fc(x)
+        logits = self.fc(x) 
 
         return logits, features

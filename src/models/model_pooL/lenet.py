@@ -17,19 +17,26 @@ class LeNet(nn.Module):
         self.fc_2 = nn.Linear(120, 84)
         self.fc_3 = nn.Linear(84, num_classes)
 
-    def forward(self, x):
+    def forward(self, x, return_feature=False):
+        if not return_feature:
+            x = self.embed(x)
+            x = self.fc_3(x)
+            return x
+        logits, feat = self.get_features_after_forward(x)
+        return logits, feat
+    
+    def embed(self, x): 
         x = self.features(x)
-        x = x.view(x.size(0), -1)
+        x = x.reshape(x.size(0), -1)
         x = F.relu(self.fc_1(x))
         x = F.relu(self.fc_2(x))
-        x = self.fc_3(x)
         return x
     
     def get_features_after_forward(self, x):
         features = []
 
         x = self.features(x)
-        x = x.view(x.size(0), -1)
+        x = x.reshape(x.size(0), -1)
 
         x = F.relu(self.fc_1(x))
         features.append(x)

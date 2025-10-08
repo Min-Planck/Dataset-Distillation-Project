@@ -11,10 +11,12 @@ class ResNet18(nn.Module):
         self.resnet.conv1 = nn.Conv2d(opt['num_channel'], 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.resnet.fc = nn.Linear(512, opt['num_classes'])
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, return_feature=False) -> torch.Tensor:
      
-        logits, _ = self.get_features_after_forward(x)
-        return logits
+        logits, feats = self.get_features_after_forward(x)
+        if not return_feature:
+            return logits
+        return logits, feats
 
     def get_features_after_forward(self, x: torch.Tensor):
         features = []
@@ -50,9 +52,11 @@ class ResNet34(nn.Module):
         self.resnet.conv1 = nn.Conv2d(opt['num_channel'], 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.resnet.fc = nn.Linear(512, opt['num_classes'])
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        logits, _ = self.get_features_after_forward(x)
-        return logits
+    def forward(self, x: torch.Tensor, return_feature=False) -> torch.Tensor:
+        logits, feats = self.get_features_after_forward(x)
+        if not return_feature:
+            return logits
+        return logits, feats
 
     def get_features_after_forward(self, x: torch.Tensor):
  
