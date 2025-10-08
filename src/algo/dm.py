@@ -101,7 +101,7 @@ class DistributionMatching(IDatasetCondensation):
                 if (k+1) % 100 == 0:
                     print(f"Step {k}/{distillation_steps}, Loss: {loss_avg:.4f}")
                     model_save_name = f'{self.model_name}_ipc{self.ipc}_step{k}.pt'
-                    path = f'pretrained_models/dm/{model_save_name}' 
+                    path = f'pretrained/dm/{model_save_name}' 
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                     torch.save(data_syn, path)
             self.synthetic_datas.append(data_syn)
