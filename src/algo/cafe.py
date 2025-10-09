@@ -97,10 +97,7 @@ class CAFE:
             net = get_model_by_name(self.model_name, self.opt).to(self.device)
             net.train() 
 
-            outer_acc_watcher = [] 
-            innter_acc_wathcher = []
-
-            inner_loop_cnt = 0
+            outer_acc_watcher = []
             outer_loop_cnt = 0
 
             while True: 
@@ -184,9 +181,6 @@ class CAFE:
                         outer_acc_watcher.pop(0)
                 
                 image_syn_train, label_syn_train = copy.deepcopy(data_syn.detach()), copy.deepcopy(targets_syn.detach()) 
-
-                dst_syn = Synthetic(image_syn_train, label_syn_train)
-                loader_syn = DataLoader(dst_syn, batch_size=self.batch_size, shuffle=True) 
 
                 inner_acc_watcher = list()
                 acc_syn_innter_watcher = list() 

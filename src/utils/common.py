@@ -5,10 +5,27 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from tqdm import tqdm
 from torch import nn, optim
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
 import os
 
 from ..algo.helper_class import SynThetic
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
 
 def sample_image(generator, n_row, batches_done, device, latent_dim):
     os.makedirs("images", exist_ok=True)
@@ -161,183 +178,158 @@ def weights_init_normal(m):
         torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
         torch.nn.init.constant_(m.bias.data, 0.0)
 
-def train_cgan(model_name, generator, discriminator, opt, dataloader, device):
-    lr = opt['lr']
-    b1 = opt['b1']
-    b2 = opt['b2']
-    num_epochs = opt['num_epochs']
-    n_classes = opt['n_classes']
-    latent_dim = opt['latent_dim']
-    sample_interval = opt['sample_interval']
+def generate_and_save_images_by_class(generator, step, num_classes, latent_dim, device, output_dir="./samples"):
+    generator.eval()
+    os.makedirs(output_dir, exist_ok=True)
 
-    adversarial_loss = nn.MSELoss()
-    optimizer_G = optim.Adam(generator.parameters(), lr=lr, betas=(b1, b2))
-    optimizer_D = optim.Adam(discriminator.parameters(), lr=lr, betas=(b1, b2))
+    n_img_per_class = 10
+    total = num_classes * n_img_per_class
 
-    FloatTensor = torch.cuda.FloatTensor if device == 'cuda' else torch.FloatTensor
-    LongTensor = torch.cuda.LongTensor if device == 'cuda' else torch.LongTensor
+    noise = torch.randn(total, latent_dim, device=device)
+    labels = torch.arange(num_classes, device=device).repeat_interleave(n_img_per_class)
 
-    generator.apply(weights_init_normal)
-    discriminator.apply(weights_init_normal)
+    onehot = torch.zeros(total, num_classes, device=device)
+    onehot[torch.arange(total), labels] = 1
+    noise[:, :num_classes] = onehot
 
-    generator.to(device)
-    discriminator.to(device)
-    adversarial_loss.to(device)
+    with torch.no_grad():
+        fake_images = generator(noise)
 
-    for epoch in range(num_epochs):
+    fake_images = (fake_images + 1) / 2
 
-        for i, (imgs, labels) in enumerate(dataloader):
-            batch_size = imgs.shape[0]
-            # Adversarial ground truths
-            valid = Variable(FloatTensor(batch_size, 1).fill_(1.0 ), requires_grad=False)
-            fake = Variable(FloatTensor(batch_size, 1).fill_(0.0), requires_grad=False)
+    grid = make_grid(fake_images, nrow=n_img_per_class, normalize=True)
 
-            # Configure input
-            real_imgs = Variable(imgs.type(FloatTensor))
-            labels = Variable(labels.type(LongTensor))
+    save_path = os.path.join(output_dir, f"step_{step:04d}.png")
+    save_image(grid, save_path)
+    print(f"[INFO] Saved generated images for {num_classes} classes at {save_path}")
 
-            # -----------------
-            #  Train Generator
-            # -----------------
+    generator.train()
 
-            optimizer_G.zero_grad()
 
-            # Sample noise and labels as generator input
-            z = Variable(FloatTensor(np.random.normal(0, 1, (batch_size, latent_dim))))
-            gen_labels = Variable(LongTensor(np.random.randint(0, n_classes, batch_size)))
+def calc_gradient_penalty(args, discriminator, img_real, img_syn, device):
+    ''' Gradient penalty from Wasserstein GAN
+    '''
+    LAMBDA = 10
+    n_size = img_real.shape[-1]
+    batch_size = img_real.shape[0]
+    n_channels = img_real.shape[1]
 
-            # Generate a batch of images
-            gen_imgs = generator(z, gen_labels)
+    alpha = torch.rand(batch_size, 1)
+    alpha = alpha.expand(batch_size, int(img_real.nelement() / batch_size)).contiguous()
+    alpha = alpha.view(batch_size, n_channels, n_size, n_size)
+    alpha = alpha.to(device)
 
-            # Loss measures generator's ability to fool the discriminator
-            validity = discriminator(gen_imgs, gen_labels)
-            g_loss = adversarial_loss(validity, valid)
+    img_syn = img_syn.view(batch_size, n_channels, n_size, n_size)
+    interpolates = alpha * img_real.detach() + ((1 - alpha) * img_syn.detach())
 
-            g_loss.backward()
-            optimizer_G.step()
-            # ---------------------
-            #  Train Discriminator
-            # ---------------------
+    interpolates = interpolates.to(device)
+    interpolates.requires_grad_(True)
 
-            optimizer_D.zero_grad()
+    disc_interpolates, _ = discriminator(interpolates)
 
-            # Loss for real images
-            validity_real = discriminator(real_imgs, labels)
-            d_real_loss = adversarial_loss(validity_real, valid)
+    gradients = torch.autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                                    grad_outputs=torch.ones(disc_interpolates.size()).to(device),
+                                    create_graph=True, retain_graph=True, only_inputs=True)[0]
 
-            # Loss for fake images
-            validity_fake = discriminator(gen_imgs.detach(), gen_labels)
-            d_fake_loss = adversarial_loss(validity_fake, fake)
+    gradients = gradients.view(gradients.size(0), -1)
+    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
+    return gradient_penalty
 
-            # Total discriminator loss
-            d_loss = (d_real_loss + d_fake_loss) / 2
+def accuracy(output, target, topk=(1, )):
+    """Computes the precision@k for the specified values of k"""
+    maxk = max(topk)
+    batch_size = target.size(0)
 
-            d_loss.backward()
-            optimizer_D.step()
+    _, pred = output.topk(maxk, 1, True, True)
+    pred = pred.t()
+    correct = pred.eq(target.reshape(1, -1).expand_as(pred))
 
-            if i % sample_interval == 0:
-                print(
-                    "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
-                    % (epoch, num_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
+    res = []
+    for k in topk:
+        correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
+        res.append(correct_k.mul_(100.0 / batch_size))
+
+    return res
+
+def train_cgan(args, epochs, generator, discriminator, optim_g, optim_d, trainloader, criterion, device):
+    '''The main training function for the generator
+    '''
+    for epoch in range(epochs): 
+        generator.train()
+        gen_losses = AverageMeter()
+        disc_losses = AverageMeter()
+        top1 = AverageMeter()
+        top5 = AverageMeter()
+
+        for batch_idx, (img_real, lab_real) in enumerate(trainloader):
+            img_real = img_real.to(device)
+            lab_real = lab_real.to(device)
+
+            # train the generator
+            discriminator.eval()
+            optim_g.zero_grad()
+
+            # obtain the noise with one-hot class labels
+            current_batch_size = lab_real.size(0) # Get the actual batch size
+            noise = torch.normal(0, 1, (current_batch_size, args['latent_dim']))
+            lab_onehot = torch.zeros((current_batch_size, args['n_classes']))
+            lab_onehot[torch.arange(current_batch_size), lab_real] = 1
+            noise[torch.arange(current_batch_size), :args['n_classes']] = lab_onehot[torch.arange(current_batch_size)]
+            noise = noise.to(device)
+
+            img_syn = generator(noise)
+            gen_source, gen_class = discriminator(img_syn)
+            gen_source = gen_source.mean()
+            gen_class = criterion(gen_class, lab_real)
+            gen_loss = - gen_source + gen_class
+
+            gen_loss.backward()
+            optim_g.step()
+
+            # train the discriminator
+            discriminator.train()
+            optim_d.zero_grad()
+            lab_syn = torch.randint(args['n_classes'], (current_batch_size,)) # Use actual batch size
+            noise = torch.normal(0, 1, (current_batch_size, args['latent_dim'])) # Use actual batch size
+            lab_onehot = torch.zeros((current_batch_size, args['n_classes'])) # Use actual batch size
+            lab_onehot[torch.arange(current_batch_size), lab_syn] = 1
+            noise[torch.arange(current_batch_size), :args['n_classes']] = lab_onehot[torch.arange(current_batch_size)]
+            noise = noise.to(device)
+            lab_syn = lab_syn.to(device)
+
+            with torch.no_grad():
+                img_syn = generator(noise)
+
+            disc_fake_source, disc_fake_class = discriminator(img_syn)
+            disc_fake_source = disc_fake_source.mean()
+            disc_fake_class = criterion(disc_fake_class, lab_syn)
+
+            disc_real_source, disc_real_class = discriminator(img_real)
+            acc1, acc5 = accuracy(disc_real_class.data, lab_real, topk=(1, 5))
+            disc_real_source = disc_real_source.mean()
+            disc_real_class = criterion(disc_real_class, lab_real)
+
+            gradient_penalty = calc_gradient_penalty(args, discriminator, img_real, img_syn, device)
+
+            disc_loss = disc_fake_source - disc_real_source + disc_fake_class + disc_real_class + gradient_penalty
+            disc_loss.backward()
+            optim_d.step()
+
+            gen_losses.update(gen_loss.item())
+            disc_losses.update(disc_loss.item())
+            top1.update(acc1.item())
+            top5.update(acc5.item())
+
+            if (batch_idx + 1) % 100 == 0:
+                print('[Train Epoch {} Iter {}] G Loss: {:.3f}({:.3f}) D Loss: {:.3f}({:.3f}) D Acc: {:.3f}({:.3f})'.format(
+                    epoch, batch_idx + 1, gen_losses.val, gen_losses.avg, disc_losses.val, disc_losses.avg, top1.val, top1.avg)
                 )
-            batches_done = epoch * len(dataloader) + i
-            if batches_done % sample_interval == 0:
-                sample_image(generator, n_row=10, batches_done=batches_done, FloatTensor=FloatTensor, LongTensor=LongTensor, latent_dim=latent_dim)
 
-    os.makedirs(f"pretrained_models/gan/cgan_{opt['dataset_name']}", exist_ok=True)
-    torch.save(generator.state_dict(), f"pretrained_models/gan/cgan_{opt['dataset_name']}/{model_name}_generator.pth")
-
-def train_acgan(model_name, generator, discriminator, dataloader, opt, device):
-    lr = opt['lr']
-    b1 = opt['b1']
-    b2 = opt['b2']
-    num_epochs = opt['n_epochs']
-    n_classes = opt['n_classes']
-    latent_dim = opt['latent_dim']
-    sample_interval = opt['sample_interval']
-
-    adversarial_loss = torch.nn.BCELoss()
-    auxiliary_loss = torch.nn.CrossEntropyLoss()
-
-    optimizer_G = optim.Adam(generator.parameters(), lr=lr, betas=(b1, b2))
-    optimizer_D = optim.Adam(discriminator.parameters(), lr=lr, betas=(b1, b2))
-
-    FloatTensor = torch.cuda.FloatTensor if device == 'cuda' else torch.FloatTensor
-    LongTensor = torch.cuda.LongTensor if device == 'cuda' else torch.LongTensor
-
-    generator.to(device)
-    discriminator.to(device)
-    adversarial_loss.to(device)
-    auxiliary_loss.to(device)
-
-    flip_prob = 0.05
+            batch_dones = epoch * len(trainloader) + batch_idx
+            if batch_dones % args['sample_interval'] == 0:
+                generate_and_save_images_by_class(generator, batch_dones, args['n_classes'], args['latent_dim'], device)
     
-    for epoch in range(num_epochs):
-
-        for i, (imgs, labels) in enumerate(dataloader):
-            batch_size = imgs.shape[0]
-            # Adversarial ground truths
-            valid = Variable(FloatTensor(batch_size, 1).fill_(1.0), requires_grad=False)
-            fake = Variable(FloatTensor(batch_size, 1).fill_(0.0), requires_grad=False)
-
-            if torch.rand(1).item() < flip_prob:
-                valid, fake = fake, valid
-            
-            # Configure input
-            real_imgs = Variable(imgs.type(FloatTensor))
-            labels = Variable(labels.type(LongTensor))
-
-            # -----------------
-            #  Train Generator
-            # -----------------
-
-            optimizer_G.zero_grad()
-
-            # Sample noise and labels as generator input
-            z = Variable(FloatTensor(np.random.normal(0, 1, (batch_size, latent_dim))))
-            gen_labels = Variable(LongTensor(np.random.randint(0, n_classes, batch_size)))
-
-            # Generate a batch of images
-            gen_imgs = generator(z, gen_labels)
-
-            # Loss measures generator's ability to fool the discriminator
-            validity, pred_label = discriminator(gen_imgs)
-            g_loss = 0.5 * (adversarial_loss(validity, valid) + auxiliary_loss(pred_label, gen_labels))
-
-            g_loss.backward()
-            optimizer_G.step()
-            # ---------------------
-            #  Train Discriminator
-            # ---------------------
-
-            optimizer_D.zero_grad()
-
-            # Loss for real images
-            real_pred, real_aux = discriminator(real_imgs)
-            d_real_loss = (adversarial_loss(real_pred, valid) + auxiliary_loss(real_aux, labels)) / 2
-
-            # Loss for fake images
-            fake_pred, fake_aux = discriminator(gen_imgs.detach())
-            d_fake_loss = (adversarial_loss(fake_pred, fake) + auxiliary_loss(fake_aux, gen_labels)) / 2
-
-            # Total discriminator loss
-            d_loss = (d_real_loss + d_fake_loss) / 2
-
-            # Calculate discriminator accuracy
-            pred = np.concatenate([real_aux.data.cpu().numpy(), fake_aux.data.cpu().numpy()], axis=0)
-            gt = np.concatenate([labels.data.cpu().numpy(), gen_labels.data.cpu().numpy()], axis=0)
-            d_acc = np.mean(np.argmax(pred, axis=1) == gt)
-
-            d_loss.backward()
-            optimizer_D.step()
-            if i % sample_interval == 0:
-                 print(
-                    "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
-                    % (epoch, num_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
-                )
-            batches_done = epoch * len(dataloader) + i
-            if batches_done % sample_interval == 0:
-                sample_image(generator, n_row=n_classes, batches_done=batches_done, device=device, latent_dim=latent_dim)
-
-    os.makedirs(f"pretrained_models/gan/acgan_{opt['dataset_name']}", exist_ok=True)
-    torch.save(generator.state_dict(), f"pretrained_models/gan/acgan_{opt['dataset_name']}/{model_name}_generator.pth")
+    save_path = f"./pretrained/gan/cgan_{args['dataset_name']}"
+    os.makedirs(save_path, exist_ok=True)
+    torch.save(generator.state_dict(), f"{save_path}/generator.pt")
+    torch.save(discriminator.state_dict(), f"{save_path}/discriminator.pt")

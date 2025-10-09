@@ -7,7 +7,7 @@ from torch.autograd import Variable
 from tqdm import tqdm
 from torch import nn
 import numpy as np 
-from torchvision.utils import save_image
+
 from .interface import IDatasetDistillation
 
 class DiM(IDatasetDistillation):
@@ -26,6 +26,7 @@ class DiM(IDatasetDistillation):
         self.device = device 
         self.opt = opt
         self.dataset_name = dataset_name
+        self.num_epochs = opt['num_distill_epochs']
 
         gen, disc = get_gan(gan_model_name, dataset_name, opt, use_pretrained=use_pretrained, pretrained_gan_path=pretrained_gan_path)
 
@@ -39,7 +40,7 @@ class DiM(IDatasetDistillation):
             else: 
                 raise ValueError(f"GAN model {gan_model_name} is not supported for training from scratch.")
 
-        self.generator = gen.to(self.deviceF)
+        self.generator = gen.to(self.device)
         self.discriminator = disc.to(self.device)
 
         self.distilled_model_path = self._get_distilled_model_path()
@@ -70,7 +71,6 @@ class DiM(IDatasetDistillation):
         print(f"Loaded distilled generator from: {self.distilled_model_path}")
         
     def distillation(self): 
-        self.Q = self.opt['num_distill_epochs']
         lr = self.opt['lr']
         b1 = self.opt['b1'] 
         b2 = self.opt['b2']

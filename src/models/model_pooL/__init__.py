@@ -8,18 +8,18 @@ import random
 
 def get_random_model_from_model_pool(opt):
     idx = random.randint(1, 6)
-    if idx == 1: 
+    if idx == 1:
         model = CNN(opt)
     elif idx == 2:
         model = ResNet18(opt)
     elif idx == 3:
         model = ResNet34(opt)
     elif idx == 4:
-        model = AlexNet(opt)
+        model = AlexNet(channel=opt['channel'], num_classes=opt['n_classes'], img_size=opt['img_size'])
     elif idx == 5:
         model = LeNet(channel=opt['channel'], num_classes=opt['n_classes'])
-    elif idx == 6: 
-        model = MLP(channel=opt['channel'], im_size=opt['im_size'], num_classes=opt['n_classes'])
+    elif idx == 6:
+        model = MLP(channel=opt['channel'], im_size=opt['img_size'], num_classes=opt['n_classes'])
 
     return model
 

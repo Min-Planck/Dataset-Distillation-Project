@@ -2,143 +2,260 @@ import torch
 from torch import nn 
 import numpy as np
 
+# This code is based on the code provided in https://github.com/richardkxu/GANs-on-CIFAR10.
+class Discriminator(nn.Module):
+
+    def __init__(self, opt):
+        super(Discriminator, self).__init__()
+        if opt['dataset_name'] == 'mnist' or opt['dataset_name'] == 'fmnist':
+            self.in_channels = 1
+            self.conv1 = nn.Conv2d(1, 196, kernel_size=3, stride=1, padding=1)
+            size = 28
+        else:
+            self.in_channels = 3
+            self.conv1 = nn.Conv2d(3, 196, kernel_size=3, stride=1, padding=1)
+            size = 32
+        self.ln1 = nn.LayerNorm(normalized_shape=[196, size, size])
+        self.lrelu1 = nn.LeakyReLU()
+
+        self.conv2 = nn.Conv2d(196, 196, kernel_size=3, stride=2, padding=1)
+        self.ln2 = nn.LayerNorm(normalized_shape=[196, size // 2, size // 2])
+        self.lrelu2 = nn.LeakyReLU()
+
+        self.conv3 = nn.Conv2d(196, 196, kernel_size=3, stride=1, padding=1)
+        self.ln3 = nn.LayerNorm(normalized_shape=[196, size // 2, size // 2])
+        self.lrelu3 = nn.LeakyReLU()
+
+        self.conv4 = nn.Conv2d(196, 196, kernel_size=3, stride=2, padding=1)
+        self.ln4 = nn.LayerNorm(normalized_shape=[196, size // 4, size // 4])
+        self.lrelu4 = nn.LeakyReLU()
+
+        self.conv5 = nn.Conv2d(196, 196, kernel_size=3, stride=1, padding=1)
+        self.ln5 = nn.LayerNorm(normalized_shape=[196, size // 4, size // 4])
+        self.lrelu5 = nn.LeakyReLU()
+
+        self.conv6 = nn.Conv2d(196, 196, kernel_size=3, stride=1, padding=1)
+        self.ln6 = nn.LayerNorm(normalized_shape=[196, size // 4, size // 4])
+        self.lrelu6 = nn.LeakyReLU()
+
+        self.conv7 = nn.Conv2d(196, 196, kernel_size=3, stride=1, padding=1)
+        self.ln7 = nn.LayerNorm(normalized_shape=[196, size // 4, size // 4])
+        self.lrelu7 = nn.LeakyReLU()
+
+        self.conv8 = nn.Conv2d(196, 196, kernel_size=3, stride=2, padding=1)
+        self.ln8 = nn.LayerNorm(normalized_shape=[196, 4, 4])
+        self.lrelu8 = nn.LeakyReLU()
+
+        self.pool = nn.MaxPool2d(kernel_size=4, stride=4, padding=0)
+        self.fc1 = nn.Linear(196, 1)
+        self.fc10 = nn.Linear(196, 10)
+
+    def forward(self, x, print_size=False):
+        if print_size:
+            print("input size: {}".format(x.size()))
+
+        x = self.conv1(x)
+        x = self.ln1(x)
+        x = self.lrelu1(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv2(x)
+        x = self.ln2(x)
+        x = self.lrelu2(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv3(x)
+        x = self.ln3(x)
+        x = self.lrelu3(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv4(x)
+        x = self.ln4(x)
+        x = self.lrelu4(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv5(x)
+        x = self.ln5(x)
+        x = self.lrelu5(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv6(x)
+        x = self.ln6(x)
+        x = self.lrelu6(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv7(x)
+        x = self.ln7(x)
+        x = self.lrelu7(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv8(x)
+        x = self.ln8(x)
+        x = self.lrelu8(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.pool(x)
+
+        if print_size:
+            print(x.size())
+
+        x = x.view(x.size(0), -1)
+
+        if print_size:
+            print(x.size())
+
+        fc1_out = self.fc1(x)
+        fc10_out = self.fc10(x)
+
+        if print_size:
+            print("fc1_out size: {}".format(fc1_out.size()))
+            print("fc10_out size: {}".format(fc10_out.size()))
+
+        return fc1_out, fc10_out
+
 
 class Generator(nn.Module):
+
     def __init__(self, opt):
         super(Generator, self).__init__()
-        self.opt = opt 
-        self.img_shape = (opt['channels'], opt['img_size'], opt['img_size'])
-        self.label_emb = nn.Embedding(opt['n_classes'], opt['n_classes'])
-        self.base_channel = opt['base_channel']
-        
-        self.fc1 = nn.Linear(opt['latent_dim'] + opt['n_classes'], self.base_channel * 4 * 4)
-        self.bn0 = nn.BatchNorm1d(self.base_channel * 4 * 4)
-        self.relu0 = nn.LeakyReLU(0.2, inplace=True)  # Thay ReLU bằng LeakyReLU
+        self.fc1 = nn.Linear(100, 196*4*4)
+        self.bn0 = nn.BatchNorm1d(196*4*4)
+        self.relu0 = nn.ReLU()
 
-        if opt['channels'] == 1: 
-            self.trans_conv1 = nn.ConvTranspose2d(self.base_channel, self.base_channel, kernel_size=3, stride=2, padding=1)
-        else: 
-            self.trans_conv1 = nn.ConvTranspose2d(self.base_channel, self.base_channel, kernel_size=4, stride=2, padding=1)
+        if opt['dataset_name'] == 'mnist' or opt['dataset_name'] == 'fmnist':
+            self.conv1 = nn.ConvTranspose2d(196, 196, kernel_size=3, stride=2, padding=1)
+        else:
+            self.conv1 = nn.ConvTranspose2d(196, 196, kernel_size=4, stride=2, padding=1)
+        self.bn1 = nn.BatchNorm2d(196)
+        self.relu1 = nn.ReLU()
 
-        self.bn1 = nn.BatchNorm2d(self.base_channel)
-        self.relu1 = nn.LeakyReLU(0.2, inplace=True)
-        
-        def block(in_feat, out_feat, normalize=True, transpose=False):
-            if transpose: 
-                layers = [nn.ConvTranspose2d(in_feat, out_feat, kernel_size=4, stride=2, padding=1)]
-            else:
-                layers = [nn.Conv2d(in_feat, out_feat, 3, stride=1, padding=1)]
-            if normalize:
-                layers.append(nn.BatchNorm2d(out_feat))
-            layers.append(nn.LeakyReLU(0.2, inplace=True))
-            return layers
+        self.conv2 = nn.Conv2d(196, 196, kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm2d(196)
+        self.relu2 = nn.ReLU()
 
-        self.model = nn.Sequential(
-            *block(self.base_channel, self.base_channel),
-            *block(self.base_channel, self.base_channel),
-            *block(self.base_channel, self.base_channel),
-            *block(self.base_channel, self.base_channel, transpose=True),
-            *block(self.base_channel, self.base_channel),
-            *block(self.base_channel, self.base_channel, transpose=True),
-        )
-        
-        self.conv8 = nn.Conv2d(self.base_channel, opt['channels'], kernel_size=3, stride=1, padding=1)  # Sửa lỗi chính tả
+        self.conv3 = nn.Conv2d(196, 196, kernel_size=3, stride=1, padding=1)
+        self.bn3 = nn.BatchNorm2d(196)
+        self.relu3 = nn.ReLU()
+
+        self.conv4 = nn.Conv2d(196, 196, kernel_size=3, stride=1, padding=1)
+        self.bn4 = nn.BatchNorm2d(196)
+        self.relu4 = nn.ReLU()
+
+        #if args.data == 'mnist':
+        #    self.conv5 = nn.ConvTranspose2d(196, 196, kernel_size=3, stride=2, padding=1)
+        #else:
+        self.conv5 = nn.ConvTranspose2d(196, 196, kernel_size=4, stride=2, padding=1)
+        self.bn5 = nn.BatchNorm2d(196)
+        self.relu5 = nn.ReLU()
+
+        self.conv6 = nn.Conv2d(196, 196, kernel_size=3, stride=1, padding=1)
+        self.bn6 = nn.BatchNorm2d(196)
+        self.relu6 = nn.ReLU()
+
+        self.conv7 = nn.ConvTranspose2d(196, 196, kernel_size=4, stride=2, padding=1)
+        self.bn7 = nn.BatchNorm2d(196)
+        self.relu7 = nn.ReLU()
+
+        if opt['dataset_name'] == 'mnist' or opt['dataset_name'] == 'fmnist':
+            self.conv8 = nn.Conv2d(196, 1, kernel_size=3, stride=1, padding=1)
+        else:
+            self.conv8 = nn.Conv2d(196, 3, kernel_size=3, stride=1, padding=1)
+        # bn and relu are not applied after conv8
+
         self.tanh = nn.Tanh()
 
-    def forward(self, noise, labels, print_size=False):
-        assert noise.size(-1) == self.opt['latent_dim'], f"Expected noise dim {self.opt['latent_dim']}, got {noise.size(-1)}"
-        gen_input = torch.cat((self.label_emb(labels), noise), -1)
-        if print_size: 
-            print("gen_input before fc1:", gen_input.size())
-        gen_input = self.fc1(gen_input)
-        gen_input = self.bn0(gen_input)
-        gen_input = self.relu0(gen_input)
-        if print_size: 
-            print("gen_input after fc1:", gen_input.size())
-
-        gen_input = gen_input.view(-1, self.base_channel, 4, 4) 
-        if print_size: 
-            print("gen_input after view:", gen_input.size())
-        img = self.trans_conv1(gen_input)
-        img = self.bn1(img)
-        img = self.relu1(img)
+    def forward(self, x, print_size=False):
         if print_size:
-            print("img after trans_conv1:", img.size())
-        img = self.model(img)
+            print("input size: {}".format(x.size()))
+
+        x = self.fc1(x)
+        x = self.bn0(x)
+        x = self.relu0(x)
+
         if print_size:
-            print("img after model:", img.size())
-        img = self.conv8(img)
-        img = self.tanh(img)
+            print(x.size())
+
+        x = x.view(-1, 196, 4, 4)
+
         if print_size:
-            print("img after conv8 and tanh:", img.size())
-        return img
+            print(x.size())
 
-
-class Discriminator(nn.Module):
-    def __init__(self, opt):
-        super(Discriminator, self).__init__()   
-        self.opt = opt
-        self.base_channel = opt['base_channel']
-        self.img_shape = (self.opt['channels'], self.opt['img_size'], self.opt['img_size'])
-        self.label_embedding = nn.Embedding(opt['n_classes'], self.opt['img_size'] * self.opt['img_size'])
-        self.conv1 = nn.Conv2d(self.opt['channels'] + 1, self.base_channel, kernel_size=3, stride=1, padding=1)
-        self.ln1 = nn.LayerNorm([self.base_channel, self.opt['img_size'], self.opt['img_size']])  
-        self.relu1 = nn.LeakyReLU(0.2, inplace=True)
-
-        self.model = nn.Sequential(
-            nn.Conv2d(self.base_channel, self.base_channel, kernel_size=3, stride=2, padding=1),  # 28x28 -> 14x14
-            nn.BatchNorm2d(self.base_channel),
-            nn.LeakyReLU(0.2, inplace=True),
-        
-            nn.Conv2d(self.base_channel, self.base_channel, kernel_size=3, stride=2, padding=1),  # 14x14 -> 7x7
-            nn.BatchNorm2d(self.base_channel),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Dropout(0.25),
-        
-            nn.Conv2d(self.base_channel, self.base_channel, kernel_size=3, stride=2, padding=1),  # 7x7 -> 4x4
-            nn.BatchNorm2d(self.base_channel),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Dropout(0.25),
-        
-            nn.Conv2d(self.base_channel, self.base_channel, kernel_size=3, stride=1, padding=1),  # 4x4 -> 4x4
-            nn.BatchNorm2d(self.base_channel),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Dropout(0.25),
-        
-            nn.Conv2d(self.base_channel, self.base_channel, kernel_size=3, stride=1, padding=1),  # 4x4 -> 4x4
-            nn.BatchNorm2d(self.base_channel),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Dropout(0.25),
-        
-            nn.Conv2d(self.base_channel, self.base_channel, kernel_size=3, stride=1, padding=1),  # 4x4 -> 4x4
-            nn.BatchNorm2d(self.base_channel),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Dropout(0.25),
-        
-            nn.Conv2d(self.base_channel, self.base_channel, kernel_size=3, stride=2, padding=1),  # 4x4 -> 2x2
-            nn.BatchNorm2d(self.base_channel),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Dropout(0.25),
-        
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0),  # 2x2 -> 1x1
-            nn.Flatten(),
-            nn.Linear(self.base_channel * 1 * 1, 1),  # Đầu ra nhị phân
-            nn.Sigmoid(),
-        )
-
-
-    def forward(self, img, labels, print_shape=False):
-        labels_emb = self.label_embedding(labels).view(-1, 1, self.opt['img_size'], self.opt['img_size'])
-        d_in = torch.cat((img, labels_emb), dim=1)
-        x = self.conv1(d_in)
-        if print_shape:
-            print("After conv1:", x.shape)
-        x = self.ln1(x)
+        x = self.conv1(x)
+        x = self.bn1(x)
         x = self.relu1(x)
-        for i, layer in enumerate(self.model):
-            x = layer(x)
-            if print_shape: 
-                print(f"After layer {i}: {x.shape}")
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu2(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu3(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv4(x)
+        x = self.bn4(x)
+        x = self.relu4(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv5(x)
+        x = self.bn5(x)
+        x = self.relu5(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv6(x)
+        x = self.bn6(x)
+        x = self.relu6(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv7(x)
+        x = self.bn7(x)
+        x = self.relu7(x)
+
+        if print_size:
+            print(x.size())
+
+        x = self.conv8(x)
+        # bn and relu are not applied after conv8
+
+        if print_size:
+            print(x.size())
+
+        x = self.tanh(x)
+
+        if print_size:
+            print("output (tanh) size: {}".format(x.size()))
+
         return x
     
 def get_c_gan(opt): 

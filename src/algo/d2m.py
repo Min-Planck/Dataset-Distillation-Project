@@ -1,5 +1,4 @@
 # Data-to-Model Distillation: Data-Efficient Learning Framework  -https://arxiv.org/abs/2411.12841
-# DiM: Distilling Dataset into Generative Model - https://arxiv.org/pdf/2303.04707
 import os
 import torch
 from models import get_gan, get_random_model_from_model_pool, get_pretrained_generator
