@@ -4,9 +4,8 @@ import numpy as np
 import torch
 import os 
 from tqdm import tqdm
-from ..utils import DiffAugment, ParamDiffAug, get_model_by_name, evaluate_dii_method, get_images 
-
-
+from ..utils import DiffAugment, ParamDiffAug, evaluate_dii_method, get_images 
+from ..models import get_model_by_name
 
 class DistributionMatching(IDatasetCondensation):
     

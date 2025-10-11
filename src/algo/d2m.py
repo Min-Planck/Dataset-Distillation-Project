@@ -7,7 +7,6 @@ from torch.autograd import Variable
 from tqdm import tqdm
 from torch import nn
 import numpy as np 
-from torchvision.utils import save_image
 from .interface import IDatasetDistillation
 
 class D2M(IDatasetDistillation):
