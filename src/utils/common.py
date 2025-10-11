@@ -1,6 +1,6 @@
 import torch 
 import numpy as np 
-from models import get_model_by_name
+from ..models import get_model_by_name
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from tqdm import tqdm
@@ -8,7 +8,7 @@ from torch import nn, optim
 from torchvision.utils import save_image, make_grid
 import os
 
-from ..algo.helper_class import SynThetic
+from ..algo.helper_class import Synthetic
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -138,7 +138,7 @@ def evaluate_dii_method(model_name, opt, synthetic_datas, testloader, batch_size
         optimizer = torch.optim.SGD(net.parameters(), lr=0.01)
         optimizer.zero_grad()
 
-        syn_dataset = SynThetic(data_syn, targets_syn)
+        syn_dataset = Synthetic(data_syn, targets_syn)
         trainloader = DataLoader(syn_dataset, batch_size=batch_size, shuffle=True)
 
         for it in range(num_train_epochs): 

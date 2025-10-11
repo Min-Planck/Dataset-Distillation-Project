@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from config import get_config
 from src import DiM, D2M, GradientMatching, DistributionMatching, DSA, CAFE, load_data
 from src.models import get_random_model_from_model_pool

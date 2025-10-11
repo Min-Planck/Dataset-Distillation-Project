@@ -1,4 +1,4 @@
-from utils import DiffAugment, ParamDiffAug, evaluate_dii_method, get_images
+from ..utils import DiffAugment, ParamDiffAug, evaluate_dii_method, get_images
 from .helper_class import Synthetic
 
 import os
@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 import numpy as np
-from models import get_model_by_name
+from ..models import get_model_by_name
 import copy
 
 def criterion_middle(real_feature, syn_feature):

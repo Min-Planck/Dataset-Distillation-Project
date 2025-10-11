@@ -11,7 +11,8 @@ fmnist:
   sample_interval: 800
   lambda: 100 
   temperature: 4
-
+  b1: 0.5
+  b2: 0.999
 cifar10:
   dataset_name: cifar10
   img_size: 32

@@ -2,8 +2,8 @@
 
 from .interface import IDatasetCondensation
 
-from models import get_model_by_name
-from utils import gradient_distance, evaluate_dii_method, get_images
+from ..models import get_model_by_name
+from ..utils import gradient_distance, evaluate_dii_method, get_images
 
 import os
 import torch

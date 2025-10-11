@@ -1,8 +1,8 @@
 # DiM: Distilling Dataset into Generative Model - https://arxiv.org/pdf/2303.04707
 import os
 import torch
-from models import get_gan, get_random_model_from_model_pool
-from utils import train_acgan, train_cgan, LogitLossMSE, evaluate_dim_method, generate_sample_dim
+from ..models import get_gan, get_random_model_from_model_pool
+from ..utils import train_acgan, train_cgan, LogitLossMSE, evaluate_dim_method, generate_sample_dim
 from torch.autograd import Variable
 from tqdm import tqdm
 from torch import nn
@@ -33,10 +33,9 @@ class DiM(IDatasetDistillation):
         if not use_pretrained:
             if gan_model_name.lower() == 'cgan':
                 print('Training cgan from scratch')
-                train_cgan(gan_model_name, gen, disc, trainloader, opt, device)
-            elif gan_model_name.lower() == 'acgan':
-                print('Training acgan from scratch')
-                train_acgan(gan_model_name, gen, disc, trainloader, opt, device)
+                optim_g = torch.optim.Adam(gen.parameters(), lr=opt['lr'], betas=(opt['b1'], opt['b2']))
+                optim_d = torch.optim.Adam(disc.parameters(), lr=opt['lr'], betas=(opt['b1'], opt['b2']))
+                train_cgan(opt, self.opt['n_epochs'], gen, disc, optim_g, optim_d, trainloader, nn.CrossEntropyLoss(), device)
             else: 
                 raise ValueError(f"GAN model {gan_model_name} is not supported for training from scratch.")
 

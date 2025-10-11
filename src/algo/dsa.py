@@ -2,12 +2,12 @@
 
 from .interface import IDatasetCondensation
 
-from utils import gradient_distance, DiffAugment, ParamDiffAug, evaluate_dii_method, get_images
+from ..utils import gradient_distance, DiffAugment, ParamDiffAug, evaluate_dii_method, get_images
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
 from tqdm import tqdm
-from models import get_model_by_name
+from ..models import get_model_by_name
 import os
 
 class DSA(IDatasetCondensation):
