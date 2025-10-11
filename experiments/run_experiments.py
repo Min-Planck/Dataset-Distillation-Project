@@ -7,6 +7,17 @@ from src import DiM, D2M, GradientMatching, DistributionMatching, DSA, CAFE, loa
 from src.models import get_random_model_from_model_pool
 import torch
 from torch.utils.data import DataLoader
+import random
+import numpy as np
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 DATASET = 'fmnist'
 EXP_CONFIG = 'dim_conf.yaml' 
@@ -16,6 +27,8 @@ IPC = 10
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 if __name__ == '__main__': 
+    set_seed(42)
+    
     config = get_config(EXP_CONFIG)[DATASET]
     trainset, testset = load_data(DATASET)
     trainloader = DataLoader(trainset, batch_size=config['batch_size'], shuffle=True, num_workers=2)  
