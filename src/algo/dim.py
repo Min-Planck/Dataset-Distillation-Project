@@ -2,7 +2,7 @@
 import os
 import torch
 from ..models import get_gan, get_random_model_from_model_pool
-from ..utils import train_acgan, train_cgan, LogitLossMSE, evaluate_dim_method, generate_sample_dim
+from ..utils import train_cgan, LogitLossMSE, evaluate_dim_method, generate_sample_dim
 from torch.autograd import Variable
 from tqdm import tqdm
 from torch import nn
