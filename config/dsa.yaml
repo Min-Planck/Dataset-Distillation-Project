@@ -6,7 +6,6 @@ fmnist:
   lr_img: 0.1
   lr_net: 0.01
   batch_size: 256
-  network_step: 20
   dsa_strategy: color_crop_cutout_flip_scale_rotate
   eval_train_epochs: 300 
   distillation_steps: 1000
@@ -17,7 +16,6 @@ cifar10:
   n_classes: 10
   lr_img: 0.1
   lr_net: 0.01
-  network_step: 30
   batch_size: 256
   dsa_strategy: color_crop_cutout_flip_scale_rotate
   eval_train_epochs: 300 

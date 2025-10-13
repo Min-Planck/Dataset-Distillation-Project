@@ -7,6 +7,8 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 from tqdm import tqdm
+import time
+
 from ..models import get_model_by_name
 import os
 
@@ -63,8 +65,9 @@ class DSA(IDatasetCondensation):
             loss_syn.backward()
             optimizer.step()
 
-    def condensation(self, distillation_steps: int, network_step: int):
+    def condensation(self, distillation_steps: int, outer_loop: int | None, network_step: int | None):
 
+        start_time = time.time()
 
         for i in range(1):
             data_syn = torch.randn(size=(self.n_classes * self.ipc, self.channel, self.img_size[0], self.img_size[1]), dtype=torch.float, requires_grad=True, device=self.device)
@@ -85,7 +88,7 @@ class DSA(IDatasetCondensation):
 
                 loss_avg = 0
 
-                for t in range(self.ipc):
+                for t in range(outer_loop):
                     loss = torch.tensor(0.0).to(self.device)
 
                     for c in range(self.n_classes):
@@ -124,12 +127,14 @@ class DSA(IDatasetCondensation):
                 if (k + 1) % 50 == 0:
                     print(f"Step {k}/{distillation_steps}, Loss: {loss_avg:.4f}")
                     model_save_name = f'{self.model_name}_ipc{self.ipc}_step{k}.pt'
-                    path = f'pretrained/dsa/{model_save_name}'
+                    path = f'pretrained_models/dsa/{model_save_name}'
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                     torch.save(data_syn, path)
 
             self.synthetic_datas.append(data_syn)
             print(f"Distillation dataset {i+1}/{1} completed.")
-
+        end_time = time.time()
+        return end_time - start_time
+        
     def evaluate(self, num_train_epochs: int) -> float:
         return evaluate_dii_method(self.model_name, self.opt, self.synthetic_datas, self.testloader, self.batch_size, self.ipc, num_train_epochs, self.n_classes, self.device)

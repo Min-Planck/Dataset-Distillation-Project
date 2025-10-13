@@ -1,3 +1,5 @@
+import time 
+import psutil
 import torch 
 import numpy as np 
 from ..models import get_model_by_name
@@ -9,6 +11,26 @@ from torchvision.utils import save_image, make_grid
 import os
 
 from ..algo.helper_class import Synthetic
+
+
+def get_loops(ipc):
+    if ipc == 1:
+        outer_loop, inner_loop = 1, 1
+    elif ipc == 10:
+        outer_loop, inner_loop = 10, 50
+    elif ipc == 20:
+        outer_loop, inner_loop = 20, 25
+    elif ipc == 30:
+        outer_loop, inner_loop = 30, 20
+    elif ipc == 40:
+        outer_loop, inner_loop = 40, 15
+    elif ipc == 50:
+        outer_loop, inner_loop = 50, 10
+    else:
+        outer_loop, inner_loop = 0, 0
+        exit('loop hyper-parameters are not defined for %d ipc'%ipc)
+    return outer_loop, inner_loop
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -126,10 +148,14 @@ def generate_sample_dim(generator, dataset_name, ipc, latent_dim, save_root, n_c
 
     print(f"Generated and Saved {n_classes * ipc} images to: {base_dir}")
 
-def evaluate_dii_method(model_name, opt, synthetic_datas, testloader, batch_size, ipc, num_train_epochs, n_classes, device): 
+def evaluate_dii_method(model_name, opt, synthetic_datas, testloader, batch_size, ipc, num_train_epochs, n_classes, device):
+    start_time = time.time()
+    process = psutil.Process()
+    cpu_start = process.cpu_percent(interval=None)
+
     accuracies = []
     targets_syn = torch.tensor([np.ones(ipc) * i for i in range(n_classes)], dtype=torch.long, requires_grad=False,  device=device).view(-1)
-
+    
     for data_syn in synthetic_datas:
         loss_fn = torch.nn.CrossEntropyLoss().to(device)
         net = get_model_by_name(model_name, opt).to(device)
@@ -141,8 +167,8 @@ def evaluate_dii_method(model_name, opt, synthetic_datas, testloader, batch_size
         syn_dataset = Synthetic(data_syn, targets_syn)
         trainloader = DataLoader(syn_dataset, batch_size=batch_size, shuffle=True)
 
-        for it in range(num_train_epochs): 
-                
+        for it in range(num_train_epochs):
+
             for images, labels in trainloader:
                 images, labels = images.to(device), labels.to(device)
 
@@ -152,7 +178,12 @@ def evaluate_dii_method(model_name, opt, synthetic_datas, testloader, batch_size
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                
+
+        end_time = time.time()
+        cpu_end = process.cpu_percent(interval=None)
+        elapsed_time = end_time - start_time
+        cpu_usage = (cpu_start + cpu_end) / 2
+
         net.eval()
         with torch.inference_mode():
             correct = 0
@@ -164,10 +195,10 @@ def evaluate_dii_method(model_name, opt, synthetic_datas, testloader, batch_size
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
             accuracy = 100 * correct / total
-                
+
         accuracies.append(accuracy)
-            
-    return sum(accuracies) / len(accuracies)
+
+    return sum(accuracies) / len(accuracies), elapsed_time, cpu_usage
 
 
 def weights_init_normal(m):

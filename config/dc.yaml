@@ -6,7 +6,6 @@ fmnist:
   lr_img: 0.1
   lr_net: 0.01
   batch_size: 256
-  network_step: 20
   eval_train_epochs: 300 
   distillation_steps: 1000
 cifar10: 
@@ -18,5 +17,4 @@ cifar10:
   lr_net: 0.01
   eval_train_epochs: 300 
   batch_size: 256
-  network_step: 30
   distillation_steps: 1000

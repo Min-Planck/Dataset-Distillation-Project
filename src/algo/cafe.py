@@ -1,10 +1,12 @@
 from ..utils import DiffAugment, ParamDiffAug, evaluate_dii_method, get_images
 from .helper_class import Synthetic
+from .interface import IDatasetCondensation
 
 import os
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+import time
 import numpy as np
 from ..models import get_model_by_name
 import copy
@@ -19,25 +21,25 @@ def criterion_middle(real_feature, syn_feature):
 
     return MSE_Loss(real_feature, syn_feature)
 
-class CAFE:
+class CAFE(IDatasetCondensation):
     def __init__(self,
                  model_name,
-                 trainset, 
+                 trainset,
                  testloader,
                  device,
                  ipc,
                  opt):
-        
-        self.model_name = model_name 
+
+        self.model_name = model_name
         self.trainset = trainset
-        self.testloader = testloader 
+        self.testloader = testloader
         self.opt = opt
         self.device = device
         self.ipc = ipc
 
         self.n_classes = opt['n_classes']
         self.channel = opt['channel']
-        self.batch_size = opt['batch_size'] 
+        self.batch_size = opt['batch_size']
         self.img_size = (opt['img_size'], opt['img_size'])
         self.lr_img = opt['lr_img']
         self.lr_net = opt['lr_net']
@@ -63,12 +65,12 @@ class CAFE:
             self.dsa = True
             self.dsa_param = ParamDiffAug()
             self.augment_strategy = opt['dsa_strategy']
-        else: 
+        else:
             self.dsa = False
 
     @staticmethod
-    def update_model(optimizer, steps, loss_function, net, syn_data_data, syn_data_target): 
-        acc_avg = 0.0 
+    def update_model(optimizer, steps, loss_function, net, syn_data_data, syn_data_target):
+        acc_avg = 0.0
         for s in range(steps):
             net.train()
             prediction_syn = net(syn_data_data)
@@ -79,12 +81,13 @@ class CAFE:
             loss_syn.backward()
             optimizer.step()
             acc_avg += acc
-            
+
         return acc_avg / steps
 
-    def condensation(self, network_step: int):
+    def condensation(self, distillation_steps: int, outer_loop: int | None, network_step: int | None):
 
-        for i in range(1): 
+        start_time = time.time()
+        for i in range(1):
             data_syn = torch.randn(size=(self.n_classes * self.ipc, self.channel, self.img_size[0], self.img_size[1]), dtype=torch.float, requires_grad=True, device=self.device)
             targets_syn = torch.tensor([np.ones(self.ipc)*i for i in range(self.n_classes)], dtype=torch.long, requires_grad=False,  device=self.device).view(-1)
 
@@ -95,13 +98,16 @@ class CAFE:
             criterion_sum = nn.CrossEntropyLoss(reduction='sum').to(self.device)
 
             net = get_model_by_name(self.model_name, self.opt).to(self.device)
-            net.train() 
+            net.train()
 
             outer_acc_watcher = []
+            innter_acc_wathcher = []
+
+            inner_loop_cnt = 0
             outer_loop_cnt = 0
 
-            while True: 
-                net_params = list(net.parameters()) 
+            while True:
+                net_params = list(net.parameters())
                 optimizer_net = torch.optim.SGD(net.parameters(), lr=self.lr_net)
                 optimizer_net.zero_grad()
 
@@ -109,24 +115,24 @@ class CAFE:
                 loss_kai = 0
                 loss_middle_item = 0
 
-                
+
                 img_real_gather = []
                 img_syn_gather = []
                 lab_real_gather = []
                 lab_syn_gather = []
 
                 loss = torch.tensor(0.0).to(self.device)
-                for c in range(self.n_classes): 
-                    img_real = get_images(self.indices_class, self.images_all, c, self.batch_size) 
+                for c in range(self.n_classes):
+                    img_real = get_images(self.indices_class, self.images_all, c, self.batch_size)
                     img_syn = data_syn[c * self.ipc:(c + 1) * self.ipc].reshape((self.ipc, self.channel, self.img_size[0], self.img_size[1]))
-                    
+
                     if self.dsa:
                         img_real = DiffAugment(img_real, strategy=self.augment_strategy, param=self.dsa_param)
                         img_syn = DiffAugment(img_syn, strategy=self.augment_strategy, param=self.dsa_param)
 
                     target_real = torch.ones((img_real.shape[0],), dtype=torch.long, device=self.device) * c
                     target_syn = torch.ones((self.ipc,), dtype=torch.long, device=self.device) * c
-                        
+
                     img_real_gather.append(img_real)
                     lab_real_gather.append(target_real)
                     img_syn_gather.append(img_syn)
@@ -150,7 +156,7 @@ class CAFE:
 
                 loss_output = criterion_middle(last_syn_feature, last_real_feature) + self.inner_weight * criterion_sum(output, lab_real_gather)
                 loss += loss_output
-                
+
                 loss.backward()
                 optimizer_img.step()
                 optimizer_img.zero_grad()
@@ -170,28 +176,31 @@ class CAFE:
                 outer_acc_watcher.append(outer_acc)
                 outer_loop_cnt += 1
 
-                if len(outer_acc_watcher) == 10: 
+                if len(outer_acc_watcher) == 10:
                     if max(outer_acc_watcher) - min(outer_acc_watcher) < self.lambda_1:
                         outer_acc_watcher = list()
                         outer_loop_cnt = 0
                         outer_acc = 0.0
-                        break   
+                        break
 
-                    else: 
+                    else:
                         outer_acc_watcher.pop(0)
-                
-                image_syn_train, label_syn_train = copy.deepcopy(data_syn.detach()), copy.deepcopy(targets_syn.detach()) 
+
+                image_syn_train, label_syn_train = copy.deepcopy(data_syn.detach()), copy.deepcopy(targets_syn.detach())
+
+                dst_syn = Synthetic(image_syn_train, label_syn_train)
+                loader_syn = DataLoader(dst_syn, batch_size=self.batch_size, shuffle=True)
 
                 inner_acc_watcher = list()
-                acc_syn_innter_watcher = list() 
+                acc_syn_innter_watcher = list()
                 inner_cnt = 0
                 acc_test = 0
 
-                while True: 
+                while True:
                     acc_syn = self.update_model(optimizer_net, network_step, loss_fn, net, image_syn_train, label_syn_train)
                     acc_syn_innter_watcher.append(acc_syn)
 
-                    for c in range(self.n_classes): 
+                    for c in range(self.n_classes):
                         img_real = get_images(self.indices_class, self.images_all, c, self.batch_size)
                         target_real = torch.ones((img_real.shape[0],), dtype=torch.long, device=self.device) * c
 
@@ -200,26 +209,30 @@ class CAFE:
 
                     acc_test /= self.n_classes
                     inner_acc_watcher.append(acc_test)
-                    
-                    inner_cnt += 1 
+
+                    inner_cnt += 1
                     if len(inner_acc_watcher) == 10:
                         if max(inner_acc_watcher) - min(inner_acc_watcher) < self.lambda_2:
                             inner_acc_watcher = list()
                             inner_cnt = 0
                             acc_test = 0
                             break
-                        else: 
+                        else:
                             inner_acc_watcher.pop(0)
                 loss_avg /= (self.n_classes * self.ipc)
-                if (outer_loop_cnt + 1) % 50 == 0: 
+                if (outer_loop_cnt + 1) % 50 == 0:
                     print(f"Step {outer_loop_cnt}, Loss: {loss_avg:.4f}, Loss_middle: {loss_middle_item:.4f}")
                     model_save_name = f'{self.model_name}_ipc{self.ipc}_step{outer_loop_cnt}.pt'
-                    path = f'pretrained/cafe/{model_save_name}'
+                    path = f'pretrained_models/cafe/{model_save_name}'
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                     torch.save(data_syn, path)
-               
 
-        print("Finished Distillation") 
+                if outer_loop_cnt == distillation_steps - 1:
+                    self.synthetic_datas.append(data_syn)
+                    break
+        end_time = time.time()
+        print("Finished Distillation")
 
+        return end_time - start_time
     def evaluate(self, num_train_epochs: int) -> float:
         return evaluate_dii_method(self.model_name, self.opt, self.synthetic_datas, self.testloader, self.batch_size, self.ipc, num_train_epochs, self.n_classes, self.device)

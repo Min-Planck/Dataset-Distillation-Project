@@ -5,7 +5,6 @@ fmnist:
   n_classes: 10
   lr_img: 0.1
   lr_net: 0.01
-  network_step: 20
   batch_size: 256
   eval_train_epochs: 300 
   network_step: 20
@@ -22,7 +21,6 @@ cifar10:
   network_step: 30
   eval_train_epochs: 300 
   batch_size: 256
-  network_step: 30
   dsa: null
   dsa_strategy: color_crop_cutout_flip_scale_rotate
   distillation_steps: 20000

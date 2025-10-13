@@ -9,6 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 import random
 import numpy as np
+from src.utils import get_loops
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -93,18 +94,18 @@ if __name__ == '__main__':
         )
 
     if GAN is not None:
-        algo.distillation() 
+        distill_time = algo.distillation() 
         algo.generate_sample(ipc=IPC)
 
         eval_model = get_random_model_from_model_pool(config)
-        accuracy = algo.evaluate(eval_model, ipc=IPC)
+        accuracy, elapsed_time, cpu_usage = algo.evaluate(eval_model, ipc=IPC)
     else: 
-        if ALGO != 'CAFE': 
-            algo.condensation(config['distillation_steps'], config['network_step'])
-        else: 
-            algo.condensation(config['network_step'])
-        accuracy = algo.evaluate(config['eval_train_epochs'])
+        outer_loop, inner_loop = get_loops(IPC)
+        distill_time = algo.condensation(distillation_steps=config['distillation_steps'],
+                                         outer_loop=outer_loop, 
+                                         network_step=inner_loop)
+        accuracy, elapsed_time, cpu_usage = algo.evaluate(config['eval_train_epochs'])
 
-    print(f'{ALGO} - Image per class: {IPC} - Final accuracy: {accuracy:.4f}%')
+    print(f'{ALGO} - Image per class: {IPC}, Eval train time: {elapsed_time:.2f}s, CPU Usage: {cpu_usage:.2f}%, Final accuracy: {accuracy:.4f}%, Distillation time: {distill_time:.2f}s')
         
     
