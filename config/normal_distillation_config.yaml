@@ -1,0 +1,75 @@
+base_fmnist: &base_fmnist_config
+  dataset_name: fmnist
+  img_size: 28
+  channel: 1
+  n_classes: 10
+  lr_img: 0.1
+  lr_net: 0.01
+  batch_size: 256
+  eval_train_epochs: 300 
+
+base_cifar10: &base_cifar10
+  dataset_name: cifar10
+  img_size: 32
+  channel: 3
+  n_classes: 10
+  lr_img: 0.1
+  lr_net: 0.01
+  batch_size: 256
+  eval_train_epochs: 300
+  
+dc_fmnist: 
+  <<: *base_fmnist_config
+  distillation_steps: 1000
+
+dc_cifar10: 
+  <<: *base_cifar10
+  distillation_steps: 1500
+
+dm_fmnist:
+  <<: *base_fmnist_config
+  dsa: null
+  dsa_strategy: color_crop_cutout_flip_scale_rotate
+  distillation_steps: 20000
+
+dm_cifar10: 
+  <<: *base_cifar10
+  dsa: null
+  dsa_strategy: color_crop_cutout_flip_scale_rotate
+  distillation_steps: 30000
+
+dsa_fmnist: 
+  <<: *base_fmnist_config
+  distillation_steps: 1000
+  dsa_strategy: color_crop_cutout_flip_scale_rotate
+
+dsa_cifar10: 
+  <<: *base_cifar10
+  distillation_steps: 1500
+  dsa_strategy: color_crop_cutout_flip_scale_rotate
+
+cafe_fmnist:
+  <<: *base_fmnist_config
+  dsa: null
+  lambda_1: 0.04
+  lambda_2: 0.03
+  first_weight: 1.0
+  second_weight: 1.0
+  third_weight: 0.1
+  forth_weight: 0.1
+  inner_weight: 0.01
+  dsa_strategy: color_crop_cutout_flip_scale_rotate
+  distillation_steps: 1000
+
+cafe_cifar10: 
+  <<: *base_cifar10
+  dsa: null
+  lambda_1: 0.04
+  lambda_2: 0.03
+  first_weight: 1.0
+  second_weight: 1.0
+  third_weight: 0.1
+  forth_weight: 0.1
+  inner_weight: 0.01
+  dsa_strategy: color_crop_cutout_flip_scale_rotate
+  distillation_steps: 1500
