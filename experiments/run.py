@@ -11,14 +11,14 @@ from src.algo import *
 
 ALGO_NAME = 'dc'
 DATASET = 'fmnist'
-GAN = 'cgan'
-IPC = 10
+GAN = None
+IPC = 1
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 if __name__ == "__main__":
     set_seed(42)
     config = get_configs(f'{ALGO_NAME}_{DATASET}')
-    
+    print(config)
     trainset, testset = load_data(DATASET)
     trainloader = DataLoader(trainset, batch_size=config['batch_size'], shuffle=True, num_workers=2)  
     testloader = DataLoader(testset, batch_size=config['batch_size'], shuffle=False, num_workers=2)  
@@ -31,7 +31,7 @@ if __name__ == "__main__":
             device=DEVICE,
             ipc=IPC,
             opt=config)
-    elif ALGO_NAME == 'DSA':
+    elif ALGO_NAME == 'dsa':
         algo = DSA(
             model_name='cnn',
             trainset=trainset, 
@@ -40,7 +40,7 @@ if __name__ == "__main__":
             ipc=IPC,
             opt=config
         )
-    elif ALGO_NAME == 'CAFE': 
+    elif ALGO_NAME == 'cafe': 
         algo = CAFE(
             model_name='cnn',
             trainset=trainset, 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
             ipc=IPC,
             opt=config
         )
-    elif ALGO_NAME == 'DM': 
+    elif ALGO_NAME == 'dm': 
         algo = DistributionMatching(
             model_name='cnn',
             trainset=trainset, 
@@ -59,12 +59,13 @@ if __name__ == "__main__":
             opt=config
         )
 
+    
     if GAN is None: 
         outer_loop, inner_loop = get_loops(IPC)
         distill_time = algo.condensation(distillation_steps=config['distillation_steps'],
                                          outer_loop=outer_loop, 
                                          network_step=inner_loop)
         accuracy, elapsed_time, cpu_usage = algo.evaluate(config['eval_train_epochs'])
-    
+    else:
+        accuracy, elapsed_time, cpu_usage, distill_time = 0, 0, 0, 0
     print(f'{ALGO_NAME} - Image per class: {IPC}, Eval train time: {elapsed_time:.2f}s, CPU Usage: {cpu_usage:.2f}%, Final accuracy: {accuracy:.4f}%, Distillation time: {distill_time:.2f}s')
-        
