@@ -221,7 +221,7 @@ class CAFE(IDatasetCondensation):
                 if (outer_loop_cnt + 1) % 50 == 0:
                     print(f"Step {outer_loop_cnt}, Loss: {loss_avg:.4f}, Loss_middle: {loss_middle_item:.4f}")
                     model_save_name = f'{self.model_name}_ipc{self.ipc}_step{outer_loop_cnt}.pt'
-                    path = f'pretrained_models/cafe/{model_save_name}'
+                    path = f'./pretrained/cafe/{model_save_name}'
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                     torch.save(data_syn, path)
 

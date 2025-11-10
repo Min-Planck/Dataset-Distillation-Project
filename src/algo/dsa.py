@@ -123,7 +123,7 @@ class DSA(IDatasetCondensation):
                 if (k + 1) % 50 == 0:
                     print(f"Step {k}/{distillation_steps}, Loss: {loss_avg:.4f}")
                     model_save_name = f'{self.model_name}_ipc{self.ipc}_step{k}.pt'
-                    path = f'pretrained_models/dsa/{model_save_name}'
+                    path = f'./pretrained/dsa/{model_save_name}'
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                     torch.save(data_syn, path)
 
