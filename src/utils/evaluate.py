@@ -2,7 +2,7 @@ import numpy as np
 import time
 import torch
 import psutil
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 
 class Synthetic(Dataset):
