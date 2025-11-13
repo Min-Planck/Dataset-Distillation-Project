@@ -4,12 +4,12 @@ fmnist: &base_fmnist_config
   channel: 1
   n_classes: 10 
   latent_dim: 100
-  lr: 0.0002
+  lr: 0.0001
   b1: 0.5
   b2: 0.999
   n_epochs: 120
   num_distill_epochs: 120
-  batch_size: 100
+  batch_size: 64
   sample_interval: 800
 
 cifar10: &base_cifar10 
@@ -18,12 +18,12 @@ cifar10: &base_cifar10
   channel: 3 
   n_classes: 10 
   latent_dim: 32
-  lr: 0.0002
+  lr: 0.0001
   b1: 0.5
   b2: 0.999
   n_epochs: 200
   num_distill_epochs: 200
-  batch_size: 100
+  batch_size: 64
   sample_interval: 800
 
 dim_fmnist:  

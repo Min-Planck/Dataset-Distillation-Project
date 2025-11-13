@@ -35,8 +35,8 @@ class DiM(IDatasetDistillation):
         from src.utils import get_random_model_from_model_pool
         start_time = time.time()
 
-        optimG = optim.SGD(self.gen.parameters(), lr=self.opt['lr'])
-        optimD = optim.SGD(self.disc.parameters(), lr=self.opt['lr'])
+        optimG = optim.Adam(self.gen.parameters(), lr=self.opt['lr'], betas=(self.opt['b1'], self.opt['b2']))
+        optimD = optim.Adam(self.disc.parameters(), lr=self.opt['lr'], betas=(self.opt['b1'], self.opt['b2']))
         
         validity_loss = nn.BCELoss()
         logit_loss = LogitLoss()
@@ -53,8 +53,8 @@ class DiM(IDatasetDistillation):
                 real_label = real_labels[idx % 10]
                 fake_label = fake_labels[idx % 10]
 
-                if idx % 25 == 0:
-                    real_label, fake_label = fake_label, real_label
+                # if idx % 25 == 0:
+                #     real_label, fake_label = fake_label, real_label
 
        
                 optimD.zero_grad()
@@ -88,14 +88,18 @@ class DiM(IDatasetDistillation):
 
                 validity_label.fill_(1.0)
                 fake_validity = self.disc(fakes, sample_labels)
+
                 rand_model = get_random_model_from_model_pool(self.opt).to(self.device)
+                for p in rand_model.parameters():
+                    p.requires_grad = False
+                rand_model.eval()
+
                 with torch.no_grad():
-                    logits_real = rand_model(images)
-                    logits_syn = rand_model(fakes)
+                    logits_real = rand_model(images).detach()
 
-                    errG_logit_loss = logit_loss(logits_real, logits_syn)
-
-                errG = validity_loss(fake_validity, validity_label) + errG_logit_loss * self.d_lambda
+                logits_syn = rand_model(fakes)
+                g_logit_loss = logit_loss(logits_real, logits_syn)
+                errG = validity_loss(fake_validity, validity_label) + g_logit_loss * self.d_lambda
                 errG.backward()
                 optimG.step()
 
