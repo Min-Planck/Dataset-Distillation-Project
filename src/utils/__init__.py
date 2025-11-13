@@ -1,8 +1,8 @@
-from .common import set_seed, get_configs, get_model_by_name, get_random_model_from_model_pool, get_loops
+from .common import set_seed, get_configs, get_model_by_name, get_random_model_from_model_pool, get_loops, showImage
 from .interfaces import IDatasetCondensation, IDatasetDistillation
 from .dataset import load_data 
 from .distance import gradient_distance 
-from .evaluate import get_images, evaluate_dii_method, Synthetic
+from .evaluate import get_images, evaluate_dii_method, Synthetic, evaluate_gen_distill_method
 from .augment import DiffAugment, ParamDiffAug
 
 __all__ = [
@@ -16,7 +16,9 @@ __all__ = [
     'get_random_model_from_model_pool',
     'get_images',
     'evaluate_dii_method',
+    'evaluate_gen_distill_method',
     'DiffAugment',
     'ParamDiffAug',
-    'get_loops'
+    'get_loops', 
+    'showImage'
 ]

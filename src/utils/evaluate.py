@@ -20,6 +20,48 @@ def get_images(indices_class, images_all, c, n): # get random n images from clas
     idx_shuffle = np.random.permutation(indices_class[c])[:n]
     return images_all[idx_shuffle]
 
+def evaluate_gen_distill_method(gen, model_name, ipc, num_train_epochs, testloader, opt, device): 
+    noise = torch.randn(ipc * 10, 100, device=device)
+    sample_labels = torch.tensor([i for i in range(10) for _ in range(ipc)], device=device, dtype=torch.long)
+
+    with torch.inference_mode(): 
+        synth_samples = gen(noise, sample_labels)
+    
+    syn_dataset = Synthetic(synth_samples, sample_labels)
+    syn_trainloader = DataLoader(syn_dataset, batch_size=32, shuffle=True)
+    
+    from .common import get_model_by_name
+    net = get_model_by_name(model_name, opt).to(device)
+    for it in range(num_train_epochs): 
+        optimizer = torch.optim.SGD(net.parameters(), lr=0.01)
+        loss_fn = torch.nn.CrossEntropyLoss().to(device)
+
+        net.train()
+        for images, labels in syn_trainloader:
+            images, labels = images.to(device), labels.to(device)
+
+            prediction = net(images)
+            loss = loss_fn(prediction, labels)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+    
+    net.eval()
+    with torch.inference_mode():
+        correct = 0
+        total = 0
+        for images, labels in testloader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = net(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+        accuracy = 100 * correct / total
+
+    return accuracy
+        
+
 def evaluate_dii_method(model_name, opt, synthetic_datas, testloader, batch_size, ipc, num_train_epochs, n_classes, device):
     from .common import get_model_by_name
 

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 class IDatasetDistillation(ABC): 
 
     @abstractmethod
-    def distillation(self): 
+    def train_generator(self): 
         pass
 
     @abstractmethod
@@ -12,7 +12,7 @@ class IDatasetDistillation(ABC):
         pass
 
     @abstractmethod
-    def generate_sample(self, ipc: int, save_root: str):
+    def generate_sample(self, ipc: int):
         pass
 
 

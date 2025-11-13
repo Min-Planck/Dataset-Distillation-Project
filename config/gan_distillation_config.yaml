@@ -11,7 +11,6 @@ fmnist: &base_fmnist_config
   num_distill_epochs: 120
   batch_size: 100
   sample_interval: 800
-  lambda: 0.1
 
 cifar10: &base_cifar10 
   dataset_name: cifar10
@@ -26,13 +25,14 @@ cifar10: &base_cifar10
   num_distill_epochs: 200
   batch_size: 100
   sample_interval: 800
-  lambda: 0.1
 
 dim_fmnist:  
   <<: *base_fmnist_config
+  d_lambda: 0.01
 
 dim_cifar10: 
   <<: *base_cifar10
+  d_lambda: 0.01
 
 dcm_fmnist: 
   <<: *base_fmnist_config

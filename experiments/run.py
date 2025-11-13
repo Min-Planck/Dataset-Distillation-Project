@@ -11,7 +11,7 @@ from src.algo import *
 
 ALGO_NAME = 'dc'
 DATASET = 'fmnist'
-GAN = None
+GAN = True if ALGO_NAME in ['dim', 'dcm'] else None
 IPC = 1
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -58,14 +58,23 @@ if __name__ == "__main__":
             ipc=IPC,
             opt=config
         )
+    elif ALGO_NAME == 'dim':
+        algo = DiM(
+            trainloader=trainloader, 
+            testloader=testloader,
+            device=DEVICE,
+            opt=config
+        )
 
     
-    if GAN is None: 
+    if not GAN: 
         outer_loop, inner_loop = get_loops(IPC)
         distill_time = algo.condensation(distillation_steps=config['distillation_steps'],
                                          outer_loop=outer_loop, 
                                          network_step=inner_loop)
         accuracy, elapsed_time, cpu_usage = algo.evaluate(config['eval_train_epochs'])
     else:
-        accuracy, elapsed_time, cpu_usage, distill_time = 0, 0, 0, 0
+        distill_time = algo.train_generator()
+        accuracy = algo.evaluate(model='cnn', ipc=IPC)
+        elapsed_time, cpu_usage = 0, 0
     print(f'{ALGO_NAME} - Image per class: {IPC}, Eval train time: {elapsed_time:.2f}s, CPU Usage: {cpu_usage:.2f}%, Final accuracy: {accuracy:.4f}%, Distillation time: {distill_time:.2f}s')

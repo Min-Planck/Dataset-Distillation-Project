@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import yaml 
 from easydict import EasyDict
+import matplotlib.pyplot as plt
 
 from src.models import *
 
@@ -45,17 +46,35 @@ def get_model_by_name(model_name, opt):
 
     return model
 
+def showImage(images, save_=False, algo_name=None):
+    images = images.cpu().numpy()
+    images = images/2 + 0.5
+    plt.imshow(np.transpose(images,axes = (1,2,0)))
+    plt.axis('off')
+    if save_ and algo_name is not None:
+        save_dir = "./images/"
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        plt.savefig(save_dir + f"{algo_name}_sample_image.png")
+
 def get_random_model_from_model_pool(opt):
     idx = random.randint(1, 4)
+    dataset_name = opt['dataset_name'].lower()
+    model_path = 'pretrained/model_pool/'
     if idx == 1:
         model = CNN(opt)
+        model_path = os.path.join(model_path, f'cnn_{dataset_name}.pth')
     elif idx == 2:
         model = AlexNet(channel=opt['channel'], num_classes=opt['n_classes'], img_size=opt['img_size'])
+        model_path = os.path.join(model_path, f'alexnet_{dataset_name}.pth')
     elif idx == 3:
         model = LeNet(channel=opt['channel'], num_classes=opt['n_classes'])
+        model_path = os.path.join(model_path, f'lenet_{dataset_name}.pth')
     elif idx == 4:
         model = MLP(channel=opt['channel'], im_size=opt['img_size'], num_classes=opt['n_classes'])
+        model_path = os.path.join(model_path, f'mlp_{dataset_name}.pth')
     
+    model.load_state_dict(torch.load(model_path))
     return model
 
 def get_images(indices_class, images_all, c, n): # get random n images from class c
