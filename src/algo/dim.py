@@ -18,21 +18,25 @@ class LogitLoss(nn.Module):
 
 class DiM(IDatasetDistillation):
     def __init__(self, trainloader, testloader, device, opt):
-        super(DiM, self).__init__(opt)
         self.d_lambda = opt['d_lambda']
+        self.trainloader = trainloader
+        self.testloader = testloader
         self.gen, self.disc = get_cgan(num_channels=opt['channel'])
         self.opt = opt
-        
+        self.device = device
+
         gan_path = 'pretrained/gan/cgan'
         self.gen.load_state_dict(torch.load(f'{gan_path}/gen_{opt['dataset_name']}.pth', map_location=device))
         self.disc.load_state_dict(torch.load(f'{gan_path}/disc_{opt['dataset_name']}.pth', map_location=device))
 
+        self.gen.to(device)
+        self.disc.to(device)
     def train_generator(self): 
         from src.utils import get_random_model_from_model_pool
         start_time = time.time()
 
-        optimG = optim.Adam(self.gen.parameters(), lr=self.opt['lr'], betas=(self.opt['b1'], self.opt['b2']))
-        optimD = optim.Adam(self.disc.parameters(), lr=self.opt['lr'], betas=(self.opt['b1'], self.opt['b2']))
+        optimG = optim.SGD(self.gen.parameters(), lr=self.opt['lr'])
+        optimD = optim.SGD(self.disc.parameters(), lr=self.opt['lr'])
         
         validity_loss = nn.BCELoss()
         logit_loss = LogitLoss()
@@ -114,7 +118,8 @@ class DiM(IDatasetDistillation):
         trained_gen = torch.load(f'pretrained/dim/gen_{self.opt["dataset_name"]}.pth', map_location=self.device)
         if trained_gen is None:
             raise ValueError("Generator model not found.")
-        accuracy = evaluate_gen_distill_method(trained_gen, model, ipc, 300, self.testloader, self.opt, self.device)
+        self.gen.load_state_dict(trained_gen)
+        accuracy = evaluate_gen_distill_method(self.gen, model, ipc, 300, self.testloader, self.opt, self.device)
         return accuracy
 
     def generate_sample(self, ipc: int):
@@ -124,6 +129,7 @@ class DiM(IDatasetDistillation):
         trained_gen = torch.load(f'pretrained/dim/gen_{self.opt["dataset_name"]}.pth', map_location=self.device)
         if trained_gen is None:
             raise ValueError("Generator model not found.")
-        gen_images = trained_gen(noise, labels).detach()
+        self.gen.load_state_dict(trained_gen)  
+        gen_images = self.gen(noise, labels).detach()
         showImage(make_grid(gen_images), save_=True, algo_name='dim')
 
