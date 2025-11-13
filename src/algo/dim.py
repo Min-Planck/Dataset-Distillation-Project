@@ -5,7 +5,7 @@ import os
 import time
 from torchvision.utils import make_grid
 
-from utils import IDatasetDistillation
+from src.utils import IDatasetDistillation
 from src.gan import get_cgan
 
 class LogitLoss(nn.Module):
