@@ -1,6 +1,6 @@
 import torch 
 from torch import nn 
-from torch.optim import optim
+import torch.optim as optim
 import os
 import time
 from torchvision.utils import make_grid
