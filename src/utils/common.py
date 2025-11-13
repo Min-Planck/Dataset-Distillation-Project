@@ -25,8 +25,8 @@ def load_config(config_path: str) -> EasyDict:
 def get_configs(algo_name: str) -> EasyDict:
     gan_distillation_config = load_config('./config/gan_distillation_config.yaml')
     normal_distillation_config = load_config('./config/normal_distillation_config.yaml')
-
-    if algo_name in ['dim', 'dcm']: 
+    distill_algo = algo_name.split('_')[0]
+    if distill_algo in ['dim', 'dcm']: 
         return gan_distillation_config[algo_name]
     
     return normal_distillation_config[algo_name]
