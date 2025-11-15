@@ -117,7 +117,6 @@ class DiM(IDatasetDistillation):
                         noise = torch.randn(10, 100, device=self.device)
                         labels = torch.arange(0, 10, dtype=torch.long, device=self.device)
                         gen_images = self.gen(noise, labels).detach()
-                        print(gen_images)
                         showImage(make_grid(gen_images), save_=True, algo_name=f'cgan_{idx}_{epoch}')
                     print(
                         f"[{epoch}/{self.opt['num_distill_epochs']}] [{idx}/{len(self.trainloader)}] "

@@ -49,7 +49,8 @@ def get_model_by_name(model_name, opt):
 def showImage(images, save_=False, algo_name=None):
     images = images.cpu().numpy()
     images = images/2 + 0.5
-
+    plt.imshow(np.transpose(images,axes = (1,2,0)))
+    plt.axis('off')
     if save_ and algo_name is not None:
         algo = algo_name.split('_')[0]
         save_dir = f"./images/{algo}"
@@ -57,10 +58,7 @@ def showImage(images, save_=False, algo_name=None):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         plt.savefig(save_dir + f"/{algo_name}_sample_image.png")
-    else: 
-        plt.imshow(np.transpose(images,axes = (1,2,0)))
-        plt.axis('off')
-
+        
 def get_random_model_from_model_pool(opt):
     idx = random.randint(1, 4)
     dataset_name = opt['dataset_name'].lower()
