@@ -53,7 +53,7 @@ def showImage(images, save_=False, algo_name=None):
     if save_ and algo_name is not None:
         algo = algo_name.split('_')[0]
         save_dir = f"./images/{algo}"
-        
+
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         plt.savefig(save_dir + f"/{algo_name}_sample_image.png")
@@ -102,3 +102,11 @@ def get_loops(ipc):
         outer_loop, inner_loop = 0, 0
         exit('loop hyper-parameters are not defined for %d ipc'%ipc)
     return outer_loop, inner_loop
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        m.weight.data.normal_(0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)

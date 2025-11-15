@@ -1,4 +1,4 @@
-from .common import set_seed, get_configs, get_model_by_name, get_random_model_from_model_pool, get_loops, showImage
+from .common import set_seed, get_configs, get_model_by_name, get_random_model_from_model_pool, get_loops, showImage, weights_init
 from .interfaces import IDatasetCondensation, IDatasetDistillation
 from .dataset import load_data 
 from .distance import gradient_distance 
@@ -20,5 +20,6 @@ __all__ = [
     'DiffAugment',
     'ParamDiffAug',
     'get_loops', 
-    'showImage'
+    'showImage', 
+    'weights_init'
 ]

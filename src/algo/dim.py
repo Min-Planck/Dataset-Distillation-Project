@@ -22,10 +22,8 @@ class DiM(IDatasetDistillation):
         self.trainloader = trainloader
         self.testloader = testloader
         self.gen, self.disc = get_cgan(num_channels=opt['channel'])
-        if self.gen is None or self.disc is None:
-            raise ValueError("Generator or Discriminator model could not be created.")
-        
-        print(self.gen.__module__)
+    
+
         self.opt = opt
         self.device = device
 
@@ -34,9 +32,11 @@ class DiM(IDatasetDistillation):
 
 
     def train_generator(self): 
-        from src.utils import get_random_model_from_model_pool, showImage
-        start_time = time.time()
+        from src.utils import get_random_model_from_model_pool, showImage, weights_init
 
+        start_time = time.time()
+        self.gen.apply(weights_init)
+        self.disc.apply(weights_init)
         optimG = optim.Adam(self.gen.parameters(), lr=self.opt['lr'], betas=(self.opt['b1'], self.opt['b2']))
         optimD = optim.Adam(self.disc.parameters(), lr=self.opt['lr'], betas=(self.opt['b1'], self.opt['b2']))
         
@@ -117,7 +117,7 @@ class DiM(IDatasetDistillation):
                         noise = torch.randn(10, 100, device=self.device)
                         labels = torch.arange(0, 10, dtype=torch.long, device=self.device)
                         gen_images = self.gen(noise, labels).detach()
-
+                        print(gen_images)
                         showImage(make_grid(gen_images), save_=True, algo_name=f'cgan_{idx}_{epoch}')
                     print(
                         f"[{epoch}/{self.opt['num_distill_epochs']}] [{idx}/{len(self.trainloader)}] "
