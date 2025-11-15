@@ -8,7 +8,8 @@ fmnist: &base_fmnist_config
   b1: 0.5
   b2: 0.999
   n_epochs: 120
-  num_distill_epochs: 120
+  gan_epochs: 120
+  num_distill_epochs: 300
   batch_size: 64
   sample_interval: 800
 
@@ -22,7 +23,8 @@ cifar10: &base_cifar10
   b1: 0.5
   b2: 0.999
   n_epochs: 200
-  num_distill_epochs: 200
+  gan_epochs: 120
+  num_distill_epochs: 500
   batch_size: 64
   sample_interval: 800
 

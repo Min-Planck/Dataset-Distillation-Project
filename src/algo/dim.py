@@ -25,12 +25,10 @@ class DiM(IDatasetDistillation):
         self.opt = opt
         self.device = device
 
-        gan_path = 'pretrained/gan/cgan'
-        self.gen.load_state_dict(torch.load(f'{gan_path}/gen_{opt['dataset_name']}.pth', map_location=device))
-        self.disc.load_state_dict(torch.load(f'{gan_path}/disc_{opt['dataset_name']}.pth', map_location=device))
-
         self.gen.to(device)
         self.disc.to(device)
+
+
     def train_generator(self): 
         from src.utils import get_random_model_from_model_pool
         start_time = time.time()
@@ -44,7 +42,7 @@ class DiM(IDatasetDistillation):
         real_labels = 0.7 + 0.3 * torch.rand(10, device=self.device)
         fake_labels = 0.3 * torch.rand(10, device=self.device)
 
-        for epoch in range(self.opt['num_distill_epochs']):
+        for epoch in range(self.opt['num_distill_epochs'] + self.opt['gan_epochs']):
             for idx, (images, labels) in enumerate(self.trainloader, 0):
                 batch_size = images.size(0)
                 images = images.to(self.device)
@@ -53,8 +51,8 @@ class DiM(IDatasetDistillation):
                 real_label = real_labels[idx % 10]
                 fake_label = fake_labels[idx % 10]
 
-                # if idx % 25 == 0:
-                #     real_label, fake_label = fake_label, real_label
+                if idx % 25 == 0:
+                    real_label, fake_label = fake_label, real_label
 
        
                 optimD.zero_grad()
@@ -88,17 +86,21 @@ class DiM(IDatasetDistillation):
 
                 validity_label.fill_(1.0)
                 fake_validity = self.disc(fakes, sample_labels)
+                
+                if epoch > self.opt['gan_epochs']:
+                    rand_model = get_random_model_from_model_pool(self.opt).to(self.device)
+                    for p in rand_model.parameters():
+                        p.requires_grad = False
+                    rand_model.eval()
 
-                rand_model = get_random_model_from_model_pool(self.opt).to(self.device)
-                for p in rand_model.parameters():
-                    p.requires_grad = False
-                rand_model.eval()
+                    with torch.no_grad():
+                        logits_real = rand_model(images).detach()
 
-                with torch.no_grad():
-                    logits_real = rand_model(images).detach()
+                    logits_syn = rand_model(fakes)
+                    g_logit_loss = logit_loss(logits_real, logits_syn)
+                else: 
+                    g_logit_loss = 0.0
 
-                logits_syn = rand_model(fakes)
-                g_logit_loss = logit_loss(logits_real, logits_syn)
                 errG = validity_loss(fake_validity, validity_label) + g_logit_loss * self.d_lambda
                 errG.backward()
                 optimG.step()
