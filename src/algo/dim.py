@@ -22,6 +22,10 @@ class DiM(IDatasetDistillation):
         self.trainloader = trainloader
         self.testloader = testloader
         self.gen, self.disc = get_cgan(num_channels=opt['channel'])
+        if self.gen is None or self.disc is None:
+            raise ValueError("Generator or Discriminator model could not be created.")
+        
+        print(self.gen.__module__)
         self.opt = opt
         self.device = device
 

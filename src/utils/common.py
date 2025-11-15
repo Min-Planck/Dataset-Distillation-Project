@@ -51,7 +51,9 @@ def showImage(images, save_=False, algo_name=None):
     images = images/2 + 0.5
 
     if save_ and algo_name is not None:
-        save_dir = f"./images/{algo_name}"
+        algo = algo_name.split('_')[0]
+        save_dir = f"./images/{algo}"
+        
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         plt.savefig(save_dir + f"/{algo_name}_sample_image.png")
