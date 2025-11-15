@@ -21,15 +21,19 @@ def get_images(indices_class, images_all, c, n): # get random n images from clas
     return images_all[idx_shuffle]
 
 def evaluate_gen_distill_method(gen, model_name, ipc, num_train_epochs, testloader, opt, device): 
+    distill_start = time.time()
     noise = torch.randn(ipc * 10, 100, device=device)
     sample_labels = torch.tensor([i for i in range(10) for _ in range(ipc)], device=device, dtype=torch.long)
 
     with torch.inference_mode(): 
         synth_samples = gen(noise, sample_labels)
-    
+    distill_end = time.time()
+    distill_time = distill_end - distill_start
+
     syn_dataset = Synthetic(synth_samples, sample_labels)
     syn_trainloader = DataLoader(syn_dataset, batch_size=32, shuffle=True)
-    
+
+    eval_start = time.time()
     from .common import get_model_by_name
     net = get_model_by_name(model_name, opt).to(device)
     for it in range(num_train_epochs): 
@@ -58,8 +62,9 @@ def evaluate_gen_distill_method(gen, model_name, ipc, num_train_epochs, testload
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
         accuracy = 100 * correct / total
-
-    return accuracy
+    eval_end = time.time()
+    eval_time = eval_end - eval_start
+    return accuracy, distill_time, eval_time
         
 
 def evaluate_dii_method(model_name, opt, synthetic_datas, testloader, batch_size, ipc, num_train_epochs, n_classes, device):

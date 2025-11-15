@@ -123,8 +123,8 @@ class DiM(IDatasetDistillation):
         if trained_gen is None:
             raise ValueError("Generator model not found.")
         self.gen.load_state_dict(trained_gen)
-        accuracy = evaluate_gen_distill_method(self.gen, model, ipc, 300, self.testloader, self.opt, self.device)
-        return accuracy
+        accuracy, distill_time, eval_time = evaluate_gen_distill_method(self.gen, model, ipc, 300, self.testloader, self.opt, self.device)
+        return accuracy, distill_time, eval_time
 
     def generate_sample(self, ipc: int):
         from src.utils import showImage

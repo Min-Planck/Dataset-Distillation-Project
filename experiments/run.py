@@ -73,8 +73,16 @@ if __name__ == "__main__":
                                          outer_loop=outer_loop, 
                                          network_step=inner_loop)
         accuracy, elapsed_time, cpu_usage = algo.evaluate(config['eval_train_epochs'])
+        print(f'{ALGO_NAME} - Image per class: {IPC}, Eval train time: {elapsed_time:.2f}s, CPU Usage: {cpu_usage:.2f}%, Final accuracy: {accuracy:.4f}%, Distillation time: {distill_time:.2f}s')
+
     else:
-        distill_time = algo.train_generator()
-        accuracy = algo.evaluate(model='cnn', ipc=IPC)
-        elapsed_time, cpu_usage = 0, 0
-    print(f'{ALGO_NAME} - Image per class: {IPC}, Eval train time: {elapsed_time:.2f}s, CPU Usage: {cpu_usage:.2f}%, Final accuracy: {accuracy:.4f}%, Distillation time: {distill_time:.2f}s')
+        train_generator_time = algo.train_generator()
+        accuracy_1, distill_time_1, eval_time_1 = algo.evaluate(model='cnn', ipc=1)
+        accuracy_10, distill_time_10, eval_time_10 = algo.evaluate(model='cnn', ipc=10)
+        accuracy_50, distill_time_50, eval_time_50 = algo.evaluate(model='cnn', ipc=50)
+
+        print(f'{ALGO_NAME} - Image per class: 1, Eval accuracy: {accuracy_1:.4f}%, Image per class: 10, Eval accuracy: {accuracy_10:.4f}%, Image per class: 50, Eval accuracy: {accuracy_50:.4f}%')       
+        print(f'Distill time (1 ipc): {distill_time_1:.2f}s, Distill time (10 ipc): {distill_time_10:.2f}s, Distill time (50 ipc): {distill_time_50:.2f}s')
+        print(f'Eval time (1 ipc): {eval_time_1:.2f}s, Eval time (10 ipc): {eval_time_10:.2f}s, Eval time (50 ipc): {eval_time_50:.2f}s')
+        print(f'Train generator time: {train_generator_time:.2f}s')
+
