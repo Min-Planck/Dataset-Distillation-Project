@@ -30,7 +30,7 @@ class DiM(IDatasetDistillation):
 
 
     def train_generator(self): 
-        from src.utils import get_random_model_from_model_pool
+        from src.utils import get_random_model_from_model_pool, showImage
         start_time = time.time()
 
         optimG = optim.Adam(self.gen.parameters(), lr=self.opt['lr'], betas=(self.opt['b1'], self.opt['b2']))
@@ -86,7 +86,7 @@ class DiM(IDatasetDistillation):
 
                 validity_label.fill_(1.0)
                 fake_validity = self.disc(fakes, sample_labels)
-                
+
                 if epoch > self.opt['gan_epochs']:
                     rand_model = get_random_model_from_model_pool(self.opt).to(self.device)
                     for p in rand_model.parameters():
@@ -109,6 +109,12 @@ class DiM(IDatasetDistillation):
                 #  Logging
                 # -----------------
                 if idx % 200 == 0:
+                    if epoch < self.opt['gan_epochs']:
+                        noise = torch.randn(10, 100, device=self.device)
+                        labels = torch.arange(0, 10, dtype=torch.long, device=self.device)
+                        gen_images = self.gen(noise, labels).detach()
+
+                        showImage(make_grid(gen_images), save_=True, algo_name=f'cgan_{idx}_{epoch}')
                     print(
                         f"[{epoch}/{self.opt['num_distill_epochs']}] [{idx}/{len(self.trainloader)}] "
                         f"G_loss: {errG:.4f} D_loss: {errD:.4f}"
@@ -137,5 +143,5 @@ class DiM(IDatasetDistillation):
             raise ValueError("Generator model not found.")
         self.gen.load_state_dict(trained_gen)  
         gen_images = self.gen(noise, labels).detach()
-        showImage(make_grid(gen_images), save_=True, algo_name='dim')
+        showImage(make_grid(gen_images), save_=True, algo_name=f'dim_{ipc}')
 
