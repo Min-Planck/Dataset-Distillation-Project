@@ -4,10 +4,10 @@ fmnist: &base_fmnist_config
   channel: 1
   n_classes: 10 
   latent_dim: 100
-  lr: 5e-6
+  lr: 0.000005
   lr_eval_net: 0.01
   momentum: 0.9
-  weight_decay: 5e-4
+  weight_decay: 0.0005
   epochs_match_train: 16
   n_epochs: 120
   gan_epochs: 120
@@ -22,10 +22,10 @@ cifar10: &base_cifar10
   n_classes: 10 
   lr_eval_net: 0.01
   momentum: 0.9
-  weight_decay: 5e-4
+  weight_decay: 0.0005
   epochs_match_train: 16
   latent_dim: 32
-  lr: 5e-6
+  lr: 0.000005
   n_epochs: 200
   gan_epochs: 120
   num_distill_epochs: 500
