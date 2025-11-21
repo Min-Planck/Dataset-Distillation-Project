@@ -1,4 +1,7 @@
 from torch import nn
+import torch 
+import torch.optim as optim
+import torch.nn.functional as F
 
 class Generator(nn.Module):
     def __init__(self, num_channels=1):
@@ -89,3 +92,106 @@ def get_acgan(num_channels):
     disc = Discriminator(num_channels)
 
     return gen, disc
+def train_acgan(gen, disc, trainloader, epochs, lr, device): 
+    from utils import weights_init 
+
+    gen.to(device)
+    gen.apply(weights_init)
+    disc.to(device)
+    disc.apply(weights_init)
+
+    optimG = optim.Adam(gen.parameters(), lr, betas = (0.5,0.999))
+    optimD = optim.Adam(disc.parameters(), lr, betas = (0.5,0.999))
+
+    validity_loss = nn.BCELoss()
+
+    real_labels = 0.7 + 0.3 * torch.rand(10, device = device)
+    fake_labels = 0.3 * torch.rand(10, device = device)
+
+    for epoch in range(1,epochs+1):
+        
+        for idx, (images,labels) in enumerate(trainloader,0):
+            
+            batch_size = images.size(0)
+            labels= labels.to(device)
+            images = images.to(device)
+            
+            real_label = real_labels[idx % 10]
+            fake_label = fake_labels[idx % 10]
+            
+            fake_class_labels = 10*torch.ones((batch_size,),dtype = torch.long,device = device)
+            
+            if idx % 25 == 0:
+                real_label, fake_label = fake_label, real_label
+            
+            # ---------------------
+            #         disc
+            # ---------------------
+            
+            optimD.zero_grad()       
+            
+            # real
+            validity_label = torch.full((batch_size,),real_label , device = device)
+    
+            pvalidity, plabels = disc(images)       
+            
+            errD_real_val = validity_loss(pvalidity, validity_label)            
+            errD_real_label = F.nll_loss(plabels,labels)
+            
+            errD_real = errD_real_val + errD_real_label
+            errD_real.backward()
+            
+            D_x = pvalidity.mean().item()        
+            
+            #fake 
+            noise = torch.randn(batch_size,100,device = device)  
+            sample_labels = torch.randint(0,10,(batch_size,),device = device, dtype = torch.long)
+            
+            fakes = gen(noise,sample_labels)
+            
+            validity_label.fill_(fake_label)
+            
+            pvalidity, plabels = disc(fakes.detach())       
+            
+            errD_fake_val = validity_loss(pvalidity, validity_label)
+            errD_fake_label = F.nll_loss(plabels, fake_class_labels)
+            
+            errD_fake = errD_fake_val + errD_fake_label
+            errD_fake.backward()
+            
+            D_G_z1 = pvalidity.mean().item()
+            
+            #finally update the params!
+            errD = errD_real + errD_fake
+            
+            optimD.step()
+        
+            
+            # ------------------------
+            #      gen
+            # ------------------------
+            
+            
+            optimG.zero_grad()
+            
+            noise = torch.randn(batch_size,100,device = device)  
+            sample_labels = torch.randint(0,10,(batch_size,),device = device, dtype = torch.long)
+            
+            validity_label.fill_(1)
+            
+            fakes = gen(noise,sample_labels)
+            pvalidity,plabels = disc(fakes)
+            
+            errG_val = validity_loss(pvalidity, validity_label)        
+            errG_label = F.nll_loss(plabels, sample_labels)
+            
+            errG = errG_val + errG_label
+            errG.backward()
+            
+            D_G_z2 = pvalidity.mean().item()
+            
+            optimG.step()
+            if idx % 200 == 0:
+                print("[{}/{}] [{}/{}] D_x: [{:.4f}] D_G: [{:.4f}/{:.4f}] G_loss: [{:.4f}] D_loss: [{:.4f}] D_label: [{:.4f}] "
+                .format(epoch,epochs, idx, len(trainloader),D_x, D_G_z1,D_G_z2,errG,errD,
+                        errD_real_label + errD_fake_label + errG_label))
