@@ -110,7 +110,7 @@ class DiM(IDatasetDistillation):
         optimD = optim.Adam(self.disc.parameters(), self.opt['lr'], betas=(0.5, 0.999))
         validity_loss = nn.BCELoss()
 
-        self.gen, self.disc = train_cgan(self.gen, self.disc, self.trainloader, self.opt['gan_epochs'], self.opt['gan_lr'], self.device)
+        self.gen, self.disc = train_cgan(self.gen, self.disc, self.trainloader, self.opt['gan_epochs'], self.opt['lr'], self.device)
         for epoch in range(1, self.opt['num_distill_epochs'] + 1): 
             self.train(self.gen, self.disc, optimG, optimD, validity_loss, self.trainloader)
 
